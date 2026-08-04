@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local test artefacts (keep the published placeholder)
+# public/dashboard.png is intentionally committed as a placeholder
+
+# Kindle runtime artefacts (if someone syncs device files back)
+kindle/extensions/oink/cache/
+kindle/extensions/oink/logs/
+kindle/extensions/oink/*.pid

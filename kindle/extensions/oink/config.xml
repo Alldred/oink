@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension>
+  <information>
+    <name>Oink</name>
+    <version>0.1.0</version>
+    <author>Oink contributors</author>
+    <id>oink-eink-dashboard</id>
+  </information>
+  <menus>
+    <menu type="json" dynamic="true">menu.json</menu>
+  </menus>
+</extension>

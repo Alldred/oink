@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "name": "Oink",
+      "priority": -999,
+      "items": [
+        {
+          "name": "Start Oink",
+          "action": "/bin/sh",
+          "params": "./start.sh",
+          "exitmenu": true
+        },
+        {
+          "name": "Refresh now",
+          "action": "/bin/sh",
+          "params": "./update.sh",
+          "exitmenu": false
+        },
+        {
+          "name": "Stop Oink",
+          "action": "/bin/sh",
+          "params": "./stop.sh",
+          "exitmenu": true
+        }
+      ]
+    }
+  ]
+}
