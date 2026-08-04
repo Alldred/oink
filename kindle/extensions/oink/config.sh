@@ -1,13 +1,13 @@
 #!/bin/sh
 # Oink configuration — edit DASHBOARD_URL before first use.
 #
-# For a GitHub project site the image is published at:
-#   https://USERNAME.github.io/oink/dashboard.png
+# For this repository the published image is:
+#   https://Alldred.github.io/oink/dashboard.png
 #
-# Replace USERNAME with your GitHub username (or organisation).
+# If you forked the project, replace Alldred with your GitHub username.
 
 # Required: public URL of the generated dashboard PNG
-DASHBOARD_URL="https://USERNAME.github.io/oink/dashboard.png"
+DASHBOARD_URL="https://Alldred.github.io/oink/dashboard.png"
 
 # How often the background loop refreshes (seconds). Default: 30 minutes.
 REFRESH_SECONDS=1800

@@ -5,7 +5,11 @@
 
 set -e
 
-OINK_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+case "$0" in
+    /*) _script="$0" ;;
+    *) _script="$(pwd)/$0" ;;
+esac
+OINK_DIR="$(CDPATH= cd -- "$(dirname "$_script")" && pwd)"
 # shellcheck disable=SC1091
 . "$OINK_DIR/common.sh"
 

@@ -7,19 +7,19 @@
         {
           "name": "Start Oink",
           "action": "/bin/sh",
-          "params": "./start.sh",
+          "params": "/mnt/us/extensions/oink/start.sh",
           "exitmenu": true
         },
         {
           "name": "Refresh now",
           "action": "/bin/sh",
-          "params": "./update.sh",
-          "exitmenu": false
+          "params": "/mnt/us/extensions/oink/update.sh",
+          "exitmenu": true
         },
         {
           "name": "Stop Oink",
           "action": "/bin/sh",
-          "params": "./stop.sh",
+          "params": "/mnt/us/extensions/oink/stop.sh",
           "exitmenu": true
         }
       ]

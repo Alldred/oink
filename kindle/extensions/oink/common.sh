@@ -29,7 +29,15 @@
 #   mntroot rw / root edits      — Oink stays under /mnt/us only
 # ---------------------------------------------------------------------------
 
-OINK_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+# When sourced from start/update/stop, prefer the caller's OINK_DIR if set.
+# Otherwise resolve from $0 (absolute or relative to cwd).
+if [ -z "$OINK_DIR" ] || [ ! -d "$OINK_DIR" ]; then
+    case "$0" in
+        /*) _oink_script="$0" ;;
+        *) _oink_script="$(pwd)/$0" ;;
+    esac
+    OINK_DIR="$(CDPATH= cd -- "$(dirname "$_oink_script")" && pwd)"
+fi
 CACHE_DIR="$OINK_DIR/cache"
 LOG_DIR="$OINK_DIR/logs"
 PID_FILE="$OINK_DIR/oink.pid"
@@ -62,7 +70,7 @@ load_config() {
     . "$CONFIG_FILE"
 
     if [ -z "$DASHBOARD_URL" ] || echo "$DASHBOARD_URL" | grep -q 'USERNAME'; then
-        log_console "ERROR: set DASHBOARD_URL in config.sh (replace USERNAME)"
+        log_console "ERROR: set DASHBOARD_URL in config.sh to your Pages PNG URL"
         return 1
     fi
 
