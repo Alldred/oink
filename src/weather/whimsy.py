@@ -218,10 +218,14 @@ def _fill_animals(template: str, rng: random.Random) -> str:
 
 
 def pick_whimsy_line(weather: WeatherData, day: date) -> str:
-    """Pick a stable-for-the-day whimsical line from the weather."""
+    """Pick a whimsical line that stays fixed for the calendar day.
+
+    The RNG is seeded only on ``day``, so half-hourly forecast refreshes
+    do not reshuffle the sentence. The weather bucket still chooses which
+    bank to draw from, so a big condition change can still retarget the line.
+    """
     bucket = sky_bucket(weather)
-    seed = f"{day.isoformat()}|{bucket}|{weather.weather_code}|{weather.precipitation_sum:.1f}"
-    rng = random.Random(seed)
+    rng = random.Random(day.isoformat())
 
     # Running joke: rare UK antelope on calm/clear/mild days only.
     if bucket in ("clear", "mild", "cloudy") and rng.randrange(20) == 0:
@@ -233,7 +237,4 @@ def pick_whimsy_line(weather: WeatherData, day: date) -> str:
         return _strip_final_stop(f"Stay inside, {indoor}. {wait}")
 
     lines = _LINES.get(bucket) or _LINES["mild"]
-    # Hot clear days can also pull the fridge line via the clear bank.
-    if bucket == "clear" and weather.uv_index_max >= 7 and rng.random() < 0.35:
-        return _strip_final_stop("Wear a hat. Then find a fridge. Then sit in it")
     return _strip_final_stop(_fill_animals(rng.choice(lines), rng))
