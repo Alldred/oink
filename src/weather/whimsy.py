@@ -70,7 +70,7 @@ _LINES: dict[Bucket, tuple[str, ...]] = {
         "A splash at tea time. {Wet} are already queuing",
         "Showers later. Pigeons arranged it, apparently",
         "Mostly dry… then a sneaky splash. {Wet} approve",
-        "Puddles wake up later. {Puddle} look ready",
+        "Puddles appear later. {Puddle} look ready",
         "Showers about. {Wet} have cleared their diaries",
         "A wet blip later. {Puddle} will be delighted",
         "Rain later. {Wet} are practising their smug faces",
