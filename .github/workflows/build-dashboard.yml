@@ -2,8 +2,10 @@ name: Build and publish dashboard
 
 on:
   schedule:
-    # Every 30 minutes. GitHub may delay cron slightly under load.
-    - cron: "*/30 * * * *"
+    # Two explicit slots, offset from :00/:30. GitHub's schedule is best-effort:
+    # */30 often collapses to ~hourly when a delayed run skips the next window.
+    - cron: "7 * * * *"
+    - cron: "37 * * * *"
   workflow_dispatch:
 
 permissions:
