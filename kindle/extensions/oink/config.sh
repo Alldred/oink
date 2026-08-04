@@ -16,6 +16,9 @@ REFRESH_SECONDS=1800
 # successful updates. Set to 1 to full-refresh every time.
 FULL_REFRESH_EVERY=6
 
-# Optional IANA-style note only — the clock timezone is set in GitHub Actions /
-# generate_dashboard.py, not on the Kindle.
-# DISPLAY_TIMEZONE=Europe/London
+# Stop the Kindle framework while Oink runs so Home cannot cover the image.
+# Stop Oink starts it again. Set to 0 to try a lighter pillow/mesquite freeze.
+STOP_FRAMEWORK=1
+
+# Re-paint the cached PNG this often (seconds) between downloads.
+REPAINT_SECONDS=60

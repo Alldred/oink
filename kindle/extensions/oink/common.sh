@@ -5,32 +5,23 @@
 # Command status for Kindle Basic 7th gen (WP63GW), firmware 5.12.2.2
 # ---------------------------------------------------------------------------
 #
-# VERIFIED (documented on MobileRead Wiki / widely used on 5.x firmware):
-#   eips -g <png>          Display a PNG full-screen
-#   eips -f -g <png>       Full waveform refresh (helps clear ghosting)
-#   eips -c                Clear the screen
-#   eips -i                Print framebuffer info (use to confirm resolution)
-#   lipc-set-prop com.lab126.powerd preventScreenSaver 1
-#   lipc-set-prop com.lab126.powerd preventScreenSaver 0
+# VERIFIED:
+#   eips -g / -f -g / -c / -i
+#   lipc-set-prop com.lab126.powerd preventScreenSaver 0|1
 #   lipc-get-prop com.lab126.wifid cmState
 #
-# REPORTED on firmware 5.12.2.2 specifically (third-party write-ups):
-#   Drawing with eips without stopping the Kindle framework works and makes
-#   Stop / Home return much safer. Oink follows that approach.
+# REQUIRED for a persistent dashboard (observed on this device):
+#   Leaving the Kindle UI running lets Home redraw over eips within seconds.
+#   Oink therefore stops the framework while running and starts it again on Stop.
+#   Commands tried in order: /etc/init.d/framework stop|start, then
+#   stop framework / start framework (Lab126 wrappers).
 #
-# ASSUMED — verify once over SSH / USBNetwork on your device:
-#   wget                   BusyBox wget is usually present after jailbreak
-#   curl                   Often absent; used only as a fallback
-#   lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home
-#                          Best-effort return to the home booklet on Stop
-#
-# NOT used by Oink (intentionally):
-#   /etc/init.d/framework stop   — harder to reverse; reboot often needed
-#   mntroot rw / root edits      — Oink stays under /mnt/us only
+# ASSUMED — verify on device:
+#   wget on PATH
+#   killall -STOP/-CONT mesquite (used only when STOP_FRAMEWORK=0)
 # ---------------------------------------------------------------------------
 
 # When sourced from start/update/stop, prefer the caller's OINK_DIR if set.
-# Otherwise resolve from $0 (absolute or relative to cwd).
 if [ -z "$OINK_DIR" ] || [ ! -d "$OINK_DIR" ]; then
     case "$0" in
         /*) _oink_script="$0" ;;
@@ -41,13 +32,14 @@ fi
 CACHE_DIR="$OINK_DIR/cache"
 LOG_DIR="$OINK_DIR/logs"
 PID_FILE="$OINK_DIR/oink.pid"
+UI_STATE_FILE="$OINK_DIR/cache/ui_suspended"
 DASHBOARD_FILE="$CACHE_DIR/dashboard.png"
 TMP_FILE="$CACHE_DIR/dashboard.png.tmp"
 LOG_FILE="$LOG_DIR/oink.log"
 CONFIG_FILE="$OINK_DIR/config.sh"
 REFRESH_COUNT_FILE="$CACHE_DIR/refresh_count"
 
-export OINK_DIR CACHE_DIR LOG_DIR PID_FILE DASHBOARD_FILE TMP_FILE LOG_FILE CONFIG_FILE REFRESH_COUNT_FILE
+export OINK_DIR CACHE_DIR LOG_DIR PID_FILE UI_STATE_FILE DASHBOARD_FILE TMP_FILE LOG_FILE CONFIG_FILE REFRESH_COUNT_FILE
 
 mkdir -p "$CACHE_DIR" "$LOG_DIR"
 
@@ -82,6 +74,16 @@ load_config() {
         FULL_REFRESH_EVERY=6
     fi
 
+    # Default: stop framework so Home cannot cover the dashboard.
+    if [ -z "$STOP_FRAMEWORK" ]; then
+        STOP_FRAMEWORK=1
+    fi
+
+    # Between downloads, re-paint the cached PNG so any stray UI redraw is undone.
+    if [ -z "$REPAINT_SECONDS" ]; then
+        REPAINT_SECONDS=60
+    fi
+
     return 0
 }
 
@@ -108,7 +110,6 @@ remove_pid() {
 }
 
 prevent_screensaver() {
-    # VERIFIED reversible keep-awake approach.
     if ! lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null; then
         lipc-set-prop -i com.lab126.powerd preventScreenSaver 1 2>/dev/null || \
             log "WARN: could not set preventScreenSaver=1"
@@ -120,6 +121,71 @@ allow_screensaver() {
         lipc-set-prop -i com.lab126.powerd preventScreenSaver 0 2>/dev/null || \
             log "WARN: could not set preventScreenSaver=0"
     fi
+}
+
+framework_stop() {
+    if [ -x /etc/init.d/framework ]; then
+        /etc/init.d/framework stop >>"$LOG_FILE" 2>&1 && return 0
+    fi
+    stop framework >>"$LOG_FILE" 2>&1 && return 0
+    return 1
+}
+
+framework_start() {
+    if [ -x /etc/init.d/framework ]; then
+        /etc/init.d/framework start >>"$LOG_FILE" 2>&1 && return 0
+    fi
+    start framework >>"$LOG_FILE" 2>&1 && return 0
+    return 1
+}
+
+suspend_kindle_ui() {
+    # Make the eips framebuffer stick by stopping (or freezing) the UI that
+    # otherwise redraws Home over the dashboard.
+    load_config || true
+    prevent_screensaver
+
+    if [ "$STOP_FRAMEWORK" = "1" ]; then
+        log "Stopping Kindle framework so Home cannot cover the dashboard"
+        if framework_stop; then
+            echo "framework" > "$UI_STATE_FILE"
+            sleep 2
+            log "Framework stopped"
+            return 0
+        fi
+        log "WARN: framework stop failed; falling back to pillow/mesquite freeze"
+    fi
+
+    # Lighter fallback — may be enough on some firmware builds.
+    lipc-set-prop com.lab126.pillow disableEnablePillow disable 2>>"$LOG_FILE" || true
+    killall -STOP mesquite 2>>"$LOG_FILE" || true
+    echo "pillow" > "$UI_STATE_FILE"
+    log "Suspended pillow/mesquite"
+    return 0
+}
+
+resume_kindle_ui() {
+    _mode="framework"
+    if [ -f "$UI_STATE_FILE" ]; then
+        _mode="$(cat "$UI_STATE_FILE" 2>/dev/null || echo framework)"
+    fi
+
+    if [ "$_mode" = "pillow" ]; then
+        log "Resuming pillow/mesquite"
+        killall -CONT mesquite 2>>"$LOG_FILE" || true
+        lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>>"$LOG_FILE" || true
+    else
+        log "Starting Kindle framework"
+        if ! framework_start; then
+            log "WARN: framework start failed — a reboot may be needed"
+        else
+            sleep 3
+            log "Framework started"
+        fi
+    fi
+
+    rm -f "$UI_STATE_FILE"
+    allow_screensaver
 }
 
 wait_for_wifi() {
@@ -149,17 +215,14 @@ validate_png() {
         return 1
     fi
 
-    # Reject HTML error pages (GitHub Pages 404s, captive portals, etc.).
     _snip="$(dd if="$_file" bs=256 count=1 2>/dev/null | tr '[:upper:]' '[:lower:]')"
     case "$_snip" in
-        *'<!doctype'*|*'<html'*|*'<head'*|*'<title'*) 
+        *'<!doctype'*|*'<html'*|*'<head'*|*'<title'*)
             log "WARN: content looks like HTML, not PNG"
             return 1
             ;;
     esac
 
-    # PNG magic: 89 50 4E 47 0D 0A 1A 0A
-    # Prefer dd|od — BusyBox od on older Kindles may lack -N.
     _magic="$(dd if="$_file" bs=8 count=1 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')"
     case "$_magic" in
         89504e470d0a1a0a*) return 0 ;;
@@ -177,12 +240,10 @@ download_dashboard() {
 
     _ok=1
     if command -v wget >/dev/null 2>&1; then
-        # ASSUME: BusyBox wget accepts -q -O. Verify on-device if downloads fail.
         if wget -q -O "$TMP_FILE" "$DASHBOARD_URL" 2>>"$LOG_FILE"; then
             _ok=0
         fi
     elif command -v curl >/dev/null 2>&1; then
-        # ASSUME: curl is only present if you installed it yourself.
         if curl -fsSL --max-time 60 -o "$TMP_FILE" "$DASHBOARD_URL" 2>>"$LOG_FILE"; then
             _ok=0
         fi
@@ -236,7 +297,6 @@ display_dashboard() {
         return 1
     fi
 
-    # VERIFIED: eips is the stock Kindle utility for painting images.
     if [ "$_full" = "1" ]; then
         if ! eips -f -g "$DASHBOARD_FILE" >/dev/null 2>>"$LOG_FILE"; then
             /usr/sbin/eips -f -g "$DASHBOARD_FILE" >/dev/null 2>>"$LOG_FILE" || {
@@ -258,8 +318,6 @@ display_dashboard() {
 }
 
 return_to_kindle_home() {
-    # ASSUME / VERIFY on 5.12.2.2. Safe no-op if unsupported; Home still works
-    # because Oink does not stop the Kindle framework.
     lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home 2>>"$LOG_FILE" || \
-        log "WARN: could not request home booklet; press Home to return"
+        log "WARN: could not request home booklet; press Home after framework restarts"
 }

@@ -1,8 +1,5 @@
 #!/bin/sh
 # Refresh the Oink dashboard once (download + display).
-#
-# Usage:
-#   /bin/sh /mnt/us/extensions/oink/update.sh
 
 set -e
 
@@ -24,27 +21,36 @@ if ! load_config; then
     exit 1
 fi
 
-prevent_screensaver
 log "Manual refresh requested"
 show_status "Oink refreshing..."
+
+# If the daemon is not running, briefly suspend UI so the paint is visible.
+# Prefer Start Oink for a lasting display.
+_started_ui=0
+if ! is_running; then
+    suspend_kindle_ui
+    _started_ui=1
+fi
 
 if download_dashboard; then
     _full="$(next_full_refresh_flag)"
     display_dashboard "$_full"
-    # Brief pause then re-paint in case Home/UI redraws after KUAL exits.
-    sleep 2
-    display_dashboard 1 || true
-    exit 0
+else
+    log "Manual refresh download failed; re-displaying cache if available"
+    if [ -f "$DASHBOARD_FILE" ]; then
+        display_dashboard 1 || true
+    else
+        show_status "Oink: download failed"
+        sleep 2
+    fi
 fi
 
-log "Manual refresh download failed; re-displaying cache if available"
-if [ -f "$DASHBOARD_FILE" ]; then
-    display_dashboard 1 || true
+if [ "$_started_ui" -eq 1 ]; then
+    show_status "Use Start to keep it"
     sleep 2
-    display_dashboard 1 || true
-    exit 1
+    if [ -f "$DASHBOARD_FILE" ]; then
+        display_dashboard 1 || true
+    fi
 fi
 
-show_status "Oink: download failed"
-sleep 3
-exit 1
+exit 0

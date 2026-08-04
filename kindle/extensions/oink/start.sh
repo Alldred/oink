@@ -1,17 +1,11 @@
 #!/bin/sh
-# Start Oink: keep the Kindle awake and refresh the dashboard in a loop.
+# Start Oink: suspend the Kindle UI, keep awake, refresh the dashboard loop.
 #
-# Usage (from KUAL or SSH):
+# Usage:
 #   /bin/sh /mnt/us/extensions/oink/start.sh
-#
-# Important: KUAL "Start Oink" uses exitmenu=true, so the Kindle home booklet
-# redraws AFTER this script returns. The daemon therefore waits briefly and
-# paints again so the dashboard is not covered by the home screen.
 
 set -e
 
-# Resolve extension dir from this script's path (works when launched via
-# /bin/sh /mnt/us/extensions/oink/start.sh).
 case "$0" in
     /*) _script="$0" ;;
     *) _script="$(pwd)/$0" ;;
@@ -21,12 +15,10 @@ OINK_DIR="$(CDPATH= cd -- "$(dirname "$_script")" && pwd)"
 . "$OINK_DIR/common.sh"
 
 show_status() {
-    # VERIFIED: eips can print short text strings.
     eips 1 1 "$1" 2>/dev/null || /usr/sbin/eips 1 1 "$1" 2>/dev/null || true
 }
 
 launch_daemon() {
-    # Ignore hangup so KUAL exiting does not kill the loop.
     trap '' HUP
 
     if command -v setsid >/dev/null 2>&1; then
@@ -42,7 +34,6 @@ launch_daemon() {
 if [ "$1" != "--daemon" ]; then
     if is_running; then
         log "Start requested but Oink is already running (pid $(cat "$PID_FILE"))"
-        # Re-paint so the user sees the dashboard even if Home covered it.
         if [ -f "$DASHBOARD_FILE" ]; then
             display_dashboard 1 || true
         fi
@@ -60,7 +51,6 @@ if [ "$1" != "--daemon" ]; then
     show_status "Oink starting..."
     log "Launching Oink daemon"
     launch_daemon
-    # Give the daemon a moment to write its PID before KUAL tears down.
     sleep 1
     exit 0
 fi
@@ -82,17 +72,15 @@ if is_running; then
 fi
 
 write_pid
-prevent_screensaver
-log "Oink started (pid $$, refresh=${REFRESH_SECONDS}s, url=$DASHBOARD_URL)"
+log "Oink started (pid $$, refresh=${REFRESH_SECONDS}s, repaint=${REPAINT_SECONDS}s, url=$DASHBOARD_URL)"
 
-# Wait for KUAL to exit and the home booklet to finish redrawing, otherwise
-# Home covers the first eips paint.
-sleep 3
+# Let KUAL exit and Home draw once, then take the UI down so it cannot cover us.
+sleep 2
+suspend_kindle_ui
 
 _paint_once() {
     if download_dashboard; then
-        _full="$(next_full_refresh_flag)"
-        display_dashboard "$_full" || true
+        display_dashboard 1 || true
         return 0
     fi
 
@@ -106,24 +94,28 @@ _paint_once() {
     return 1
 }
 
-# Paint twice up front: once after Home settles, once more in case UI redraws.
 _paint_once || true
-sleep 2
-if [ -f "$DASHBOARD_FILE" ]; then
-    display_dashboard 1 || true
-fi
 
+_elapsed=0
 while true; do
-    sleep "$REFRESH_SECONDS" || sleep 1800
+    sleep "$REPAINT_SECONDS" || sleep 60
+    _elapsed=$((_elapsed + REPAINT_SECONDS))
 
-    # Re-assert keep-awake in case something cleared it.
     prevent_screensaver
 
-    if download_dashboard; then
-        _full="$(next_full_refresh_flag)"
-        display_dashboard "$_full" || true
+    if [ "$_elapsed" -ge "$REFRESH_SECONDS" ]; then
+        _elapsed=0
+        if download_dashboard; then
+            _full="$(next_full_refresh_flag)"
+            display_dashboard "$_full" || true
+        else
+            log "Refresh failed; re-painting cache"
+            if [ -f "$DASHBOARD_FILE" ]; then
+                display_dashboard 0 || true
+            fi
+        fi
     else
-        log "Refresh failed; keeping previous dashboard on screen"
+        # Re-paint cache so any unexpected UI flash is overwritten quickly.
         if [ -f "$DASHBOARD_FILE" ]; then
             display_dashboard 0 || true
         fi

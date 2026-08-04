@@ -1,7 +1,5 @@
 #!/bin/sh
-# Stop Oink and restore normal Kindle behaviour.
-#
-# Does not reboot and does not stop the Kindle framework.
+# Stop Oink and restore the Kindle UI.
 
 set -e
 
@@ -20,7 +18,6 @@ if [ -f "$PID_FILE" ]; then
     if [ -n "$_pid" ]; then
         log "Sending TERM to pid $_pid"
         kill "$_pid" 2>/dev/null || true
-        # Give the sleep loop a moment to exit.
         _i=0
         while [ "$_i" -lt 10 ]; do
             if ! kill -0 "$_pid" 2>/dev/null; then
@@ -37,12 +34,11 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 remove_pid
-allow_screensaver
+resume_kindle_ui
 
-# Clear the painted dashboard so the user is not stuck looking at a stale
-# image. VERIFIED: eips -c clears the framebuffer.
+# Framework start should bring Home back; clear any stale eips frame first.
 eips -c 2>>"$LOG_FILE" || /usr/sbin/eips -c 2>>"$LOG_FILE" || true
-
+sleep 1
 return_to_kindle_home
 
 log "Oink stopped"
