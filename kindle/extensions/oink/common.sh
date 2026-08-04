@@ -321,3 +321,20 @@ return_to_kindle_home() {
     lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home 2>>"$LOG_FILE" || \
         log "WARN: could not request home booklet; press Home after framework restarts"
 }
+
+show_status() {
+    # Plain eips text — fine for short errors; prefer show_splash for branding.
+    eips 1 1 "$1" 2>/dev/null || /usr/sbin/eips 1 1 "$1" 2>/dev/null || true
+}
+
+show_splash() {
+    # Full-screen PNG via eips (same path as the dashboard). Not limited to text.
+    _splash="${1:-$OINK_DIR/splash.png}"
+    if [ -f "$_splash" ]; then
+        eips -f -g "$_splash" >/dev/null 2>>"$LOG_FILE" || \
+            /usr/sbin/eips -f -g "$_splash" >/dev/null 2>>"$LOG_FILE" || \
+            show_status "Oink starting..."
+    else
+        show_status "Oink starting..."
+    fi
+}

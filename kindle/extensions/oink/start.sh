@@ -14,10 +14,6 @@ OINK_DIR="$(CDPATH= cd -- "$(dirname "$_script")" && pwd)"
 # shellcheck disable=SC1091
 . "$OINK_DIR/common.sh"
 
-show_status() {
-    eips 1 1 "$1" 2>/dev/null || /usr/sbin/eips 1 1 "$1" 2>/dev/null || true
-}
-
 launch_daemon() {
     trap '' HUP
 
@@ -36,8 +32,9 @@ if [ "$1" != "--daemon" ]; then
         log "Start requested but Oink is already running (pid $(cat "$PID_FILE"))"
         if [ -f "$DASHBOARD_FILE" ]; then
             display_dashboard 1 || true
+        else
+            show_splash
         fi
-        show_status "Oink already running"
         sleep 1
         exit 0
     fi
@@ -48,7 +45,7 @@ if [ "$1" != "--daemon" ]; then
         exit 1
     fi
 
-    show_status "Oink starting..."
+    show_splash
     log "Launching Oink daemon"
     launch_daemon
     sleep 1
@@ -77,6 +74,7 @@ log "Oink started (pid $$, refresh=${REFRESH_SECONDS}s, repaint=${REPAINT_SECOND
 # Let KUAL exit and Home draw once, then take the UI down so it cannot cover us.
 sleep 2
 suspend_kindle_ui
+show_splash
 
 _paint_once() {
     if download_dashboard; then

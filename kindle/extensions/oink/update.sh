@@ -11,10 +11,6 @@ OINK_DIR="$(CDPATH= cd -- "$(dirname "$_script")" && pwd)"
 # shellcheck disable=SC1091
 . "$OINK_DIR/common.sh"
 
-show_status() {
-    eips 1 1 "$1" 2>/dev/null || /usr/sbin/eips 1 1 "$1" 2>/dev/null || true
-}
-
 if ! load_config; then
     show_status "Oink: edit config.sh URL"
     sleep 3
@@ -22,13 +18,14 @@ if ! load_config; then
 fi
 
 log "Manual refresh requested"
-show_status "Oink refreshing..."
+show_splash
 
 # If the daemon is not running, briefly suspend UI so the paint is visible.
 # Prefer Start Oink for a lasting display.
 _started_ui=0
 if ! is_running; then
     suspend_kindle_ui
+    show_splash
     _started_ui=1
 fi
 
