@@ -37,6 +37,8 @@ Target device: **Kindle Basic, 7th generation (WP63GW), firmware 5.12.2.2**, wit
 | **Refresh now** | Download and display immediately (also works while Start is running) |
 | **Stop Oink** | Kill the loop, re-enable the screensaver, clear the painted image, return home |
 
+**Start returns to Home by design** (KUAL `exitmenu`). The home booklet can redraw over a too-early `eips` paint, so the daemon waits ~3s after Start and paints again. If you only ever see Home, check `logs/oink.log` and confirm `config.sh` has a working PNG URL.
+
 ## Files
 
 | Path | Purpose |
