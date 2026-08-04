@@ -28,6 +28,8 @@ Writes `public/dashboard.png`. Optional: `--timezone Europe/London`.
 2. Set `DASHBOARD_URL` in `extensions/oink/config.sh`.
 3. **KUAL → Oink → Start Oink**.
 
+Brand artwork lives in [`assets/`](assets/) (`logo.png`, splash source). Regenerate the on-device splash with `python src/generate_splash.py`.
+
 KUAL menu: Start / Refresh now / Stop. Logs: `extensions/oink/logs/oink.log`. Details: [`kindle/extensions/oink/README.md`](kindle/extensions/oink/README.md).
 
 Keep the Kindle on USB power for always-on use. Stop restores screensaver behaviour; uninstall by deleting `extensions/oink/`.
