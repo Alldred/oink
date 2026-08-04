@@ -13,7 +13,17 @@ pip install -r requirements.txt
 python src/generate_dashboard.py
 ```
 
-Writes `public/dashboard.png`. Optional: `--timezone Europe/London`.
+Writes `public/dashboard.png` with today's date and Thornbury weather (Open-Meteo). Optional: `--timezone Europe/London`.
+
+Stress-test with synthetic data (no network):
+
+```sh
+python src/generate_dashboard.py --test
+python src/generate_dashboard.py --test calm
+python src/generate_dashboard.py --test mixed
+```
+
+Fixtures: `stress` (UV 11, late heavy rain), `calm`, `mixed`. Writes `public/dashboard-<fixture>.png` by default.
 
 ## Publish
 
@@ -40,4 +50,4 @@ Subclass `Widget` in `src/widgets/`, export it, place it in `build_default_layou
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE). DejaVu fonts under `fonts/` keep their upstream licence.
+MIT — see [`LICENSE`](LICENSE). Nunito (SIL OFL) and DejaVu fonts under `fonts/` keep their upstream licences.

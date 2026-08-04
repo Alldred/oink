@@ -37,7 +37,12 @@ class Renderer:
         self.width = width
         self.height = height
 
-    def render(self, *, now: datetime | None = None) -> Image.Image:
+    def render(
+        self,
+        *,
+        now: datetime | None = None,
+        weather: Any | None = None,
+    ) -> Image.Image:
         """Return a mode-``L`` (8-bit grayscale) Pillow image."""
         try:
             tz = ZoneInfo(self.timezone)
@@ -64,6 +69,8 @@ class Renderer:
             "width": self.width,
             "height": self.height,
         }
+        if weather is not None:
+            context["weather"] = weather
 
         for widget in self.widgets:
             try:
@@ -75,12 +82,18 @@ class Renderer:
 
         return image
 
-    def save(self, path: Path, *, now: datetime | None = None) -> Path:
+    def save(
+        self,
+        path: Path,
+        *,
+        now: datetime | None = None,
+        weather: Any | None = None,
+    ) -> Path:
         """Render and write a PNG suitable for Kindle ``eips -g``."""
         path = path.resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        image = self.render(now=now)
+        image = self.render(now=now, weather=weather)
 
         # 8-bit grayscale PNG is the widely verified format for eips on
         # firmware 5.x Kindles. Avoid palette/1-bit conversion here.

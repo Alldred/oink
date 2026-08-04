@@ -60,16 +60,19 @@ class Widget(ABC):
 
     @staticmethod
     def load_font(fonts_dir: Path, size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        """Load a bundled TrueType font, falling back to Pillow's default."""
-        filename = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
-        path = fonts_dir / filename
-        try:
-            return ImageFont.truetype(str(path), size=size)
-        except OSError:
+        """Load a bundled TrueType font, falling back to DejaVu then Pillow default."""
+        primary = "Nunito-Bold.ttf" if bold else "Nunito-Regular.ttf"
+        fallback = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
+        for filename in (primary, fallback):
+            path = fonts_dir / filename
             try:
-                return ImageFont.load_default(size=size)
-            except TypeError:
-                return ImageFont.load_default()
+                return ImageFont.truetype(str(path), size=size)
+            except OSError:
+                continue
+        try:
+            return ImageFont.load_default(size=size)
+        except TypeError:
+            return ImageFont.load_default()
 
     def fill_background(self, draw: ImageDraw.ImageDraw, color: int = 255) -> None:
         """Fill the widget rectangle with a solid grayscale colour (0=black, 255=white)."""

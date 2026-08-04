@@ -8,38 +8,63 @@ in ``build_default_layout()``.
 from __future__ import annotations
 
 from widgets.base import Rect, Widget
-from widgets.clock import ClockWidget
-from widgets.message import MessageWidget
+from widgets.header import HeaderWidget
+from widgets.rain import RainForecastWidget
+from widgets.sky import SkyTimelineWidget
+from widgets.temperature import TemperatureForecastWidget
+from widgets.uv import UVForecastWidget
+from widgets.whimsy import WhimsyWidget
 
 # Kindle Basic 7th generation (WP63GW) native resolution.
 CANVAS_WIDTH = 600
 CANVAS_HEIGHT = 800
-MARGIN = 32
+MARGIN = 14
 
 
 def build_default_layout() -> list[Widget]:
-    """Return the v1 dashboard layout: clock + status message.
+    """Return the weather dashboard layout.
 
     Layout (portrait, top → bottom):
 
         ┌────────────────────────────┐
-        │          margin            │
-        │        CLOCK (date/time)   │
-        │                            │
-        │        MESSAGE             │
-        │          margin            │
+        │           DATE             │
+        │         WHIMSY             │
+        │           DAY              │
+        │          RAIN              │
+        │       TEMPERATURE          │
+        │           UV               │
         └────────────────────────────┘
     """
     content_width = CANVAS_WIDTH - (MARGIN * 2)
     content_top = MARGIN
-    content_height = CANVAS_HEIGHT - (MARGIN * 2)
 
-    # Clock takes the upper ~60%; message sits in the lower band.
-    clock_height = int(content_height * 0.60)
-    message_top = content_top + clock_height
-    message_height = content_height - clock_height
+    header_height = 28
+    gap = 6
+    whimsy_height = 40
+    sky_height = 52
+
+    after_header = content_top + header_height
+    whimsy_top = after_header + 2
+    sky_top = whimsy_top + whimsy_height + gap
+    after_day = sky_top + sky_height + gap
+
+    remaining = CANVAS_HEIGHT - MARGIN - after_day
+    charts_height = remaining - (gap * 2)
+
+    rain_height = int(charts_height * 0.22)
+    lower = charts_height - rain_height
+    temp_height = lower // 2
+    uv_height = lower - temp_height
+
+    rain_top = after_day
+    temp_top = rain_top + rain_height + gap
+    uv_top = temp_top + temp_height + gap
 
     return [
-        ClockWidget(Rect(MARGIN, content_top, content_width, clock_height)),
-        MessageWidget(Rect(MARGIN, message_top, content_width, message_height)),
+        HeaderWidget(Rect(MARGIN, content_top, content_width, header_height)),
+        WhimsyWidget(Rect(MARGIN, whimsy_top, content_width, whimsy_height)),
+        SkyTimelineWidget(Rect(MARGIN, sky_top, content_width, sky_height), show_times=False),
+        RainForecastWidget(Rect(MARGIN, rain_top, content_width, rain_height), show_times=False),
+        TemperatureForecastWidget(Rect(MARGIN, temp_top, content_width, temp_height), show_times=False),
+        UVForecastWidget(Rect(MARGIN, uv_top, content_width, uv_height), show_times=True),
     ]

@@ -37,7 +37,7 @@ def fit_on_canvas(src: Image.Image, size: tuple[int, int] = (WIDTH, HEIGHT)) -> 
 
 def from_logo(logo_path: Path) -> Image.Image:
     fonts = ROOT / "fonts"
-    sub = ImageFont.truetype(str(fonts / "DejaVuSans.ttf"), 28)
+    sub = ImageFont.truetype(str(fonts / "Nunito-Regular.ttf"), 28)
     image = Image.new("L", (WIDTH, HEIGHT), 255)
     draw = ImageDraw.Draw(image)
 
