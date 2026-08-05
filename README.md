@@ -29,7 +29,7 @@ Fixtures: `stress` (UV 11, late heavy rain), `calm`, `mixed`. Writes `public/das
 
 1. Push to GitHub.
 2. **Settings → Pages → Source: GitHub Actions**.
-3. Run **Build and publish dashboard** (or wait for the ~30-minute schedule — GitHub cron is best-effort).
+3. Run **Build and publish dashboard** (or wait for the schedule — about every 15 minutes; GitHub cron is best-effort).
 4. Image URL: `https://YOUR_USER.github.io/oink/dashboard.png`
 
 ## Kindle

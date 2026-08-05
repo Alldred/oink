@@ -2,10 +2,12 @@ name: Build and publish dashboard
 
 on:
   schedule:
-    # Two explicit slots, offset from :00/:30. GitHub's schedule is best-effort:
-    # */30 often collapses to ~hourly when a delayed run skips the next window.
+    # Four slots/hour, offset from :00/:30. GitHub cron is best-effort and
+    # often skips windows under load; denser slots recover faster from misses.
     - cron: "7 * * * *"
+    - cron: "22 * * * *"
     - cron: "37 * * * *"
+    - cron: "52 * * * *"
   workflow_dispatch:
 
 permissions:

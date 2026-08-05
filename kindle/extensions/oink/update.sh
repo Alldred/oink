@@ -1,8 +1,6 @@
 #!/bin/sh
 # Refresh the Oink dashboard once (download + display).
 
-set -e
-
 case "$0" in
     /*) _script="$0" ;;
     *) _script="$(pwd)/$0" ;;
@@ -29,18 +27,22 @@ if ! is_running; then
     _started_ui=1
 fi
 
-if download_dashboard; then
-    _full="$(next_full_refresh_flag)"
-    display_dashboard "$_full"
-else
-    log "Manual refresh download failed; re-displaying cache if available"
-    if [ -f "$DASHBOARD_FILE" ]; then
-        display_dashboard 1 || true
-    else
-        show_status "Oink: download failed"
-        sleep 2
-    fi
-fi
+_dl="$(download_dashboard || echo fail)"
+case "$_dl" in
+    new|same)
+        _full="$(next_full_refresh_flag || echo 1)"
+        display_dashboard "$_full" || true
+        ;;
+    *)
+        log "Manual refresh download failed; re-displaying cache if available"
+        if [ -f "$DASHBOARD_FILE" ]; then
+            display_dashboard 1 || true
+        else
+            show_status "Oink: download failed"
+            sleep 2
+        fi
+        ;;
+esac
 
 if [ "$_started_ui" -eq 1 ]; then
     show_status "Use Start to keep it"

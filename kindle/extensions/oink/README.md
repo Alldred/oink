@@ -23,7 +23,7 @@ Target device: **Kindle Basic, 7th generation (WP63GW), firmware 5.12.2.2**, wit
 
    ```sh
    DASHBOARD_URL="https://YOUR_GITHUB_USERNAME.github.io/oink/dashboard.png"
-   REFRESH_SECONDS=1800
+   REFRESH_SECONDS=300
    ```
 
 4. Eject the Kindle safely.
@@ -38,6 +38,8 @@ Target device: **Kindle Basic, 7th generation (WP63GW), firmware 5.12.2.2**, wit
 | **Stop Oink** | Kill the loop, re-enable the screensaver, clear the painted image, return home |
 
 **Start returns to Home by design** (KUAL `exitmenu`). The home booklet can redraw over a too-early `eips` paint, so the daemon waits ~3s after Start and paints again. If you only ever see Home, check `logs/oink.log` and confirm `config.sh` has a working PNG URL.
+
+Polls Pages every **5 minutes** by default (`REFRESH_SECONDS`) so a delayed GitHub Actions publish does not leave a long gap. Copy the updated `extensions/oink/` folder onto the Kindle (or at least `config.sh`, `common.sh`, `start.sh`, `update.sh`) and **Stop → Start** for the new loop to take effect.
 
 ## Files
 

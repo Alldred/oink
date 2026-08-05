@@ -4,8 +4,6 @@
 # Usage:
 #   /bin/sh /mnt/us/extensions/oink/start.sh
 
-set -e
-
 case "$0" in
     /*) _script="$0" ;;
     *) _script="$(pwd)/$0" ;;
@@ -53,6 +51,7 @@ if [ "$1" != "--daemon" ]; then
 fi
 
 # --- daemon ---
+# Do not use set -e here: a single failed lipc/wget/eips must not kill the loop.
 trap '' HUP
 
 if ! load_config; then
@@ -77,10 +76,13 @@ suspend_kindle_ui
 show_splash
 
 _paint_once() {
-    if download_dashboard; then
-        display_dashboard 1 || true
-        return 0
-    fi
+    _dl="$(download_dashboard)"
+    case "$_dl" in
+        new|same)
+            display_dashboard 1 || true
+            return 0
+            ;;
+    esac
 
     log "Download failed; displaying cached image if present"
     if [ -f "$DASHBOARD_FILE" ]; then
@@ -99,19 +101,28 @@ while true; do
     sleep "$REPAINT_SECONDS" || sleep 60
     _elapsed=$((_elapsed + REPAINT_SECONDS))
 
-    prevent_screensaver
+    prevent_screensaver || true
 
     if [ "$_elapsed" -ge "$REFRESH_SECONDS" ]; then
         _elapsed=0
-        if download_dashboard; then
-            _full="$(next_full_refresh_flag)"
-            display_dashboard "$_full" || true
-        else
-            log "Refresh failed; re-painting cache"
-            if [ -f "$DASHBOARD_FILE" ]; then
+        log "Refresh tick"
+        _dl="$(download_dashboard)"
+        case "$_dl" in
+            new)
+                _full="$(next_full_refresh_flag || echo 1)"
+                display_dashboard "$_full" || true
+                ;;
+            same)
+                log "Remote unchanged; re-painting cache"
                 display_dashboard 0 || true
-            fi
-        fi
+                ;;
+            *)
+                log "Refresh failed; re-painting cache"
+                if [ -f "$DASHBOARD_FILE" ]; then
+                    display_dashboard 0 || true
+                fi
+                ;;
+        esac
     else
         # Re-paint cache so any unexpected UI flash is overwritten quickly.
         if [ -f "$DASHBOARD_FILE" ]; then

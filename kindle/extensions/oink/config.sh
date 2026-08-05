@@ -9,12 +9,14 @@
 # Required: public URL of the generated dashboard PNG
 DASHBOARD_URL="https://Alldred.github.io/oink/dashboard.png"
 
-# How often the background loop refreshes (seconds). Default: 30 minutes.
-REFRESH_SECONDS=1800
+# How often to download from Pages (seconds). Poll faster than the ~30min
+# Actions publish so a missed/delayed GH run does not leave a long gap.
+# Default: 5 minutes.
+REFRESH_SECONDS=300
 
 # How often to force a full e-ink refresh (reduces ghosting). Counted in
-# successful updates. Set to 1 to full-refresh every time.
-FULL_REFRESH_EVERY=6
+# successful *new* downloads. Set to 1 to full-refresh every time.
+FULL_REFRESH_EVERY=12
 
 # Stop the Kindle framework while Oink runs so Home cannot cover the image.
 # Stop Oink starts it again. Set to 0 to try a lighter pillow/mesquite freeze.

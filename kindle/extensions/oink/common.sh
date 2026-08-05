@@ -67,7 +67,7 @@ load_config() {
     fi
 
     if [ -z "$REFRESH_SECONDS" ]; then
-        REFRESH_SECONDS=1800
+        REFRESH_SECONDS=300
     fi
 
     if [ -z "$FULL_REFRESH_EVERY" ]; then
@@ -233,39 +233,55 @@ validate_png() {
 }
 
 download_dashboard() {
-    load_config || return 1
+    # Prints one of: new | same | fail  (also returns 0 for new/same, 1 for fail)
+    load_config || {
+        echo fail
+        return 1
+    }
     wait_for_wifi || true
 
     rm -f "$TMP_FILE"
 
     _ok=1
+    # Always bound network waits — a hung wget used to freeze the daemon for hours.
     if command -v wget >/dev/null 2>&1; then
-        if wget -q -O "$TMP_FILE" "$DASHBOARD_URL" 2>>"$LOG_FILE"; then
+        if wget -q -T 60 -t 2 -O "$TMP_FILE" "$DASHBOARD_URL" 2>>"$LOG_FILE"; then
             _ok=0
         fi
     elif command -v curl >/dev/null 2>&1; then
-        if curl -fsSL --max-time 60 -o "$TMP_FILE" "$DASHBOARD_URL" 2>>"$LOG_FILE"; then
+        if curl -fsSL --connect-timeout 20 --max-time 60 -o "$TMP_FILE" "$DASHBOARD_URL" 2>>"$LOG_FILE"; then
             _ok=0
         fi
     else
         log "ERROR: neither wget nor curl found on PATH"
+        echo fail
         return 1
     fi
 
     if [ "$_ok" -ne 0 ]; then
         log "ERROR: download failed from $DASHBOARD_URL"
         rm -f "$TMP_FILE"
+        echo fail
         return 1
     fi
 
     if ! validate_png "$TMP_FILE"; then
         log "ERROR: downloaded file is not a valid PNG"
         rm -f "$TMP_FILE"
+        echo fail
         return 1
+    fi
+
+    if [ -f "$DASHBOARD_FILE" ] && cmp -s "$TMP_FILE" "$DASHBOARD_FILE"; then
+        rm -f "$TMP_FILE"
+        log "Downloaded dashboard unchanged"
+        echo same
+        return 0
     fi
 
     mv -f "$TMP_FILE" "$DASHBOARD_FILE"
     log "Downloaded dashboard ($(wc -c < "$DASHBOARD_FILE" | tr -d ' ') bytes)"
+    echo new
     return 0
 }
 
