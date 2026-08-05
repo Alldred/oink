@@ -180,5 +180,5 @@ class UVForecastWidget(Widget):
                 ),
                 updated,
                 font=meta_font,
-                fill=120,
+                fill=0,
             )
