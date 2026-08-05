@@ -451,11 +451,31 @@ def format_axis_number(value: float) -> str:
     return f"{value:.1f}".rstrip("0").rstrip(".")
 
 
+def value_at_time(values: tuple[float, ...], now) -> float:
+    """Linearly interpolate the hourly series at the exact clock time."""
+    if not values:
+        return 0.0
+    hour_f = float(now.hour) + now.minute / 60.0 + now.second / 3600.0
+    hour_f = max(0.0, min(float(len(values) - 1), hour_f))
+    lo = int(math.floor(hour_f))
+    hi = min(lo + 1, len(values) - 1)
+    frac = hour_f - lo
+    return float(values[lo]) + (float(values[hi]) - float(values[lo])) * frac
+
+
 def current_and_remaining_max(values: tuple[float, ...], now) -> tuple[float, float]:
-    """Return (value at current hour, max from now through end of day)."""
+    """Return (value at now, max from now through end of day).
+
+    Interpolates between hourly samples so the metric matches the now-marker
+    on the curve (flooring to the hour made UV show 4 while the marker sat on 3).
+    """
     if not values:
         return 0.0, 0.0
-    hour = max(0, min(int(now.hour), len(values) - 1))
-    current = float(values[hour])
-    remaining = values[hour:]
-    return current, float(max(remaining))
+    current = value_at_time(values, now)
+    hour_f = float(now.hour) + now.minute / 60.0 + now.second / 3600.0
+    hour_f = max(0.0, min(float(len(values) - 1), hour_f))
+    # Future whole-hour samples strictly after now; past hour buckets are done.
+    next_hour = int(math.floor(hour_f)) + 1
+    future = values[next_hour:] if next_hour < len(values) else ()
+    rest_max = current if not future else max(current, max(future))
+    return current, float(rest_max)
