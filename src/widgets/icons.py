@@ -30,6 +30,9 @@ _WI_GLYPHS = {
 }
 
 
+_WI_FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
+
+
 def draw_weather_icon(
     draw: ImageDraw.ImageDraw,
     kind: str,
@@ -57,6 +60,22 @@ def draw_weather_icon(
         _draw_outline(draw, kind, cx, cy, s, fill)
 
 
+def _wi_font(fonts_dir: Path, size: int) -> ImageFont.FreeTypeFont | None:
+    path = fonts_dir / "weathericons-regular-webfont.ttf"
+    key = (str(path), size)
+    cached = _WI_FONT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    if not path.is_file():
+        return None
+    try:
+        font = ImageFont.truetype(str(path), size=size)
+    except OSError:
+        return None
+    _WI_FONT_CACHE[key] = font
+    return font
+
+
 def _draw_font_icon(
     image: Image.Image,
     kind: str,
@@ -67,14 +86,10 @@ def _draw_font_icon(
     fill: int,
     fonts_dir: Path,
 ) -> bool:
-    path = fonts_dir / "weathericons-regular-webfont.ttf"
-    if not path.is_file():
+    font = _wi_font(fonts_dir, max(12, size))
+    if font is None:
         return False
     glyph = _WI_GLYPHS.get(kind, _WI_GLYPHS["cloud"])
-    try:
-        font = ImageFont.truetype(str(path), size=max(12, size))
-    except OSError:
-        return False
 
     # Render glyph to a temp image so we can centre by ink bounds.
     probe = ImageDraw.Draw(Image.new("L", (1, 1)))

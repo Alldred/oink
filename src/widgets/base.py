@@ -59,20 +59,51 @@ class Widget(ABC):
     # --- Shared drawing helpers ---
 
     @staticmethod
-    def load_font(fonts_dir: Path, size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    def load_font(
+        fonts_dir: Path,
+        size: int,
+        *,
+        bold: bool = False,
+        cache: dict[tuple[str, int, bool], ImageFont.FreeTypeFont | ImageFont.ImageFont] | None = None,
+    ) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         """Load a bundled TrueType font, falling back to DejaVu then Pillow default."""
+        key = (str(fonts_dir), size, bold)
+        if cache is not None and key in cache:
+            return cache[key]
+
         primary = "Nunito-Bold.ttf" if bold else "Nunito-Regular.ttf"
         fallback = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
+        font: ImageFont.FreeTypeFont | ImageFont.ImageFont
         for filename in (primary, fallback):
             path = fonts_dir / filename
             try:
-                return ImageFont.truetype(str(path), size=size)
+                font = ImageFont.truetype(str(path), size=size)
+                break
             except OSError:
                 continue
-        try:
-            return ImageFont.load_default(size=size)
-        except TypeError:
-            return ImageFont.load_default()
+        else:
+            try:
+                font = ImageFont.load_default(size=size)
+            except TypeError:
+                font = ImageFont.load_default()
+
+        if cache is not None:
+            cache[key] = font
+        return font
+
+    def font(
+        self,
+        context: dict[str, Any],
+        size: int,
+        *,
+        bold: bool = False,
+    ) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        """Load a font using the per-render cache in ``context``."""
+        fonts_dir = context["fonts_dir"]
+        cache = context.get("_font_cache")
+        if not isinstance(cache, dict):
+            cache = None
+        return self.load_font(fonts_dir, size, bold=bold, cache=cache)
 
     def fill_background(self, draw: ImageDraw.ImageDraw, color: int = 255) -> None:
         """Fill the widget rectangle with a solid grayscale colour (0=black, 255=white)."""

@@ -1,13 +1,8 @@
 name: Build and publish dashboard
 
 on:
-  schedule:
-    # Four slots/hour, offset from :00/:30. GitHub cron is best-effort and
-    # often skips windows under load; denser slots recover faster from misses.
-    - cron: "7 * * * *"
-    - cron: "22 * * * *"
-    - cron: "37 * * * *"
-    - cron: "52 * * * *"
+  # Scheduled runs are triggered by the Cloudflare Worker in cloudflare-scheduler/
+  # (GitHub Actions cron is best-effort and often skips windows under load).
   workflow_dispatch:
 
 permissions:
@@ -17,7 +12,8 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # Let an in-flight deploy finish; overlapping crons queue instead of cancelling.
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -35,15 +31,38 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Restore weather cache
+        uses: actions/cache@v4
+        with:
+          path: public/.weather-cache.json
+          key: weather-cache-${{ github.run_id }}
+          restore-keys: |
+            weather-cache-
+
       - name: Generate dashboard
-        run: python src/generate_dashboard.py --timezone Europe/London
         env:
           TZ: Europe/London
+        run: |
+          set -e
+          for attempt in 1 2 3; do
+            if python src/generate_dashboard.py --timezone Europe/London; then
+              exit 0
+            fi
+            echo "Generate attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 5))
+          done
+          exit 1
+
+      - name: Stage Pages files
+        run: |
+          mkdir -p _site
+          cp public/dashboard.png public/.nojekyll _site/
+          # Keep fixture PNGs in the repo for local --test, but do not publish them.
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: public
+          path: _site
 
   deploy:
     needs: build

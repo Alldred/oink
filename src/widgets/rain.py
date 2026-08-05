@@ -40,12 +40,11 @@ class RainForecastWidget(Widget):
         get_weather(context)
 
     def draw(self, image: Image.Image, draw: ImageDraw.ImageDraw, context: dict[str, Any]) -> None:
-        fonts_dir = context["fonts_dir"]
         weather = get_weather(context)
 
-        label_font = self.load_font(fonts_dir, size=22, bold=True)
-        axis_font = self.load_font(fonts_dir, size=12, bold=False)
-        metric_font = self.load_font(fonts_dir, size=18, bold=True)
+        label_font = self.font(context, 22, bold=True)
+        axis_font = self.font(context, 12, bold=False)
+        metric_font = self.font(context, 18, bold=True)
 
         r = self.rect
         values = weather.hourly_precipitation

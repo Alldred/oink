@@ -37,8 +37,8 @@ class SkyTimelineWidget(Widget):
         fonts_dir = context["fonts_dir"]
         weather = get_weather(context)
 
-        label_font = self.load_font(fonts_dir, size=22, bold=True)
-        axis_font = self.load_font(fonts_dir, size=12, bold=False)
+        label_font = self.font(context, 22, bold=True)
+        axis_font = self.font(context, 12, bold=False)
 
         r = self.rect
         codes = weather.hourly_weather_code

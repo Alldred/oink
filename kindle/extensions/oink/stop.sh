@@ -1,7 +1,7 @@
 #!/bin/sh
 # Stop Oink and restore the Kindle UI.
-
-set -e
+# Intentionally no ``set -e``: Stop must always clear PID / resume UI even if
+# one step fails (same approach as start.sh).
 
 case "$0" in
     /*) _script="$0" ;;
@@ -34,12 +34,12 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 remove_pid
-resume_kindle_ui
+resume_kindle_ui || log "WARN: resume_kindle_ui reported failure"
 
 # Framework start should bring Home back; clear any stale eips frame first.
 eips -c 2>>"$LOG_FILE" || /usr/sbin/eips -c 2>>"$LOG_FILE" || true
 sleep 1
-return_to_kindle_home
+return_to_kindle_home || true
 
 log "Oink stopped"
 exit 0

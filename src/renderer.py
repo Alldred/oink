@@ -42,6 +42,8 @@ class Renderer:
         *,
         now: datetime | None = None,
         weather: Any | None = None,
+        weather_stale: bool = False,
+        weather_cache_path: Path | None = None,
     ) -> Image.Image:
         """Return a mode-``L`` (8-bit grayscale) Pillow image."""
         try:
@@ -68,7 +70,11 @@ class Renderer:
             "timezone": self.timezone,
             "width": self.width,
             "height": self.height,
+            "weather_stale": weather_stale,
+            "_font_cache": {},
         }
+        if weather_cache_path is not None:
+            context["weather_cache_path"] = weather_cache_path
         if weather is not None:
             context["weather"] = weather
 
@@ -88,12 +94,19 @@ class Renderer:
         *,
         now: datetime | None = None,
         weather: Any | None = None,
+        weather_stale: bool = False,
+        weather_cache_path: Path | None = None,
     ) -> Path:
         """Render and write a PNG suitable for Kindle ``eips -g``."""
         path = path.resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        image = self.render(now=now, weather=weather)
+        image = self.render(
+            now=now,
+            weather=weather,
+            weather_stale=weather_stale,
+            weather_cache_path=weather_cache_path,
+        )
 
         # 8-bit grayscale PNG is the widely verified format for eips on
         # firmware 5.x Kindles. Avoid palette/1-bit conversion here.

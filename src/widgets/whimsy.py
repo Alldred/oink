@@ -21,12 +21,11 @@ class WhimsyWidget(Widget):
         get_weather(context)
 
     def draw(self, image: Image.Image, draw: ImageDraw.ImageDraw, context: dict[str, Any]) -> None:
-        fonts_dir = context["fonts_dir"]
         weather = get_weather(context)
         now = self.now(context)
         line = pick_whimsy_line(weather, now.date())
 
-        font = self.load_font(fonts_dir, size=17, bold=False)
+        font = self.font(context, 17, bold=False)
         r = self.rect
         max_width = r.width
         lines = self._wrap(draw, line, font, max_width)

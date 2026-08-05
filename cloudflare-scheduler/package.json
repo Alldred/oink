@@ -1,0 +1,16 @@
+{
+  "name": "oink-cloudflare-scheduler",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/trigger.test.js",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}

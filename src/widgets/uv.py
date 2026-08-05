@@ -26,13 +26,23 @@ from widgets.charts import (
 from .base import Rect, Widget
 
 
+def uv_level(value: float) -> int:
+    """Integer UV for display and shading — same rounding as the metric badge."""
+    return int(round(float(value)))
+
+
 def uv_fill_grey(value: float) -> int:
-    """Stronger UV → darker grey. 0–3 light, 4–5 mid, 6–7 dark, 8+ black."""
-    if value < 4:
+    """Stronger UV → darker grey. 0–3 light, 4–5 mid, 6–7 dark, 8+ black.
+
+    Uses ``uv_level`` so fill bands match the current/max integers (e.g. 3.6
+    shows as 4 and gets the mid shade, not the light band from a raw ``< 4``).
+    """
+    level = uv_level(value)
+    if level < 4:
         return 210
-    if value < 6:
+    if level < 6:
         return 145
-    if value < 8:
+    if level < 8:
         return 75
     return 25
 
@@ -61,12 +71,11 @@ class UVForecastWidget(Widget):
         get_weather(context)
 
     def draw(self, image: Image.Image, draw: ImageDraw.ImageDraw, context: dict[str, Any]) -> None:
-        fonts_dir = context["fonts_dir"]
         weather = get_weather(context)
 
-        label_font = self.load_font(fonts_dir, size=22, bold=True)
-        axis_font = self.load_font(fonts_dir, size=12, bold=False)
-        metric_font = self.load_font(fonts_dir, size=18, bold=True)
+        label_font = self.font(context, 22, bold=True)
+        axis_font = self.font(context, 12, bold=False)
+        metric_font = self.font(context, 18, bold=True)
 
         r = self.rect
         values = weather.hourly_uv_index
@@ -155,19 +164,19 @@ class UVForecastWidget(Widget):
         )
         draw_metric(
             draw,
-            f"{int(round(current))} / {int(round(rest_max))}",
+            f"{uv_level(current)} / {uv_level(rest_max)}",
             metric_font,
             right=chart_right,
             top=chart_top,
         )
 
         if self.show_times:
-            meta_font = self.load_font(fonts_dir, size=11, bold=False)
-            try:
-                stamp = now.strftime("%H:%M")
-            except ValueError:
-                stamp = now.strftime("%H:%M")
-            updated = f"Last updated {stamp}"
+            meta_font = self.font(context, 11, bold=False)
+            stamp = now.strftime("%H:%M")
+            if context.get("weather_stale"):
+                updated = f"Last updated {stamp} · cached"
+            else:
+                updated = f"Last updated {stamp}"
             meta_bbox = draw.textbbox((0, 0), updated, font=meta_font)
             meta_w = meta_bbox[2] - meta_bbox[0]
             meta_h = meta_bbox[3] - meta_bbox[1]

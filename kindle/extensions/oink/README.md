@@ -39,7 +39,7 @@ Target device: **Kindle Basic, 7th generation (WP63GW), firmware 5.12.2.2**, wit
 
 **Start returns to Home by design** (KUAL `exitmenu`). The home booklet can redraw over a too-early `eips` paint, so the daemon waits ~3s after Start and paints again. If you only ever see Home, check `logs/oink.log` and confirm `config.sh` has a working PNG URL.
 
-Polls Pages every **5 minutes** by default (`REFRESH_SECONDS`) so a delayed GitHub Actions publish does not leave a long gap. After each paint, Oink overlays the device clock (`HH:MM`) in the upper left via `eips` text (`CLOCK_OVERLAY=1`). Interim re-paints redraw it too, so the clock stays visible and updates about once a minute.
+Polls Pages every **5 minutes** by default (`REFRESH_SECONDS`) so a delayed GitHub Actions publish does not leave a long gap. After each paint, Oink overlays the device clock (`HH:MM`) top-right on the date-header line via `eips` text (`CLOCK_OVERLAY=1`, `CLOCK_ROW=1`). Column is auto-chosen for a small right-edge inset; set `CLOCK_COL` in `config.sh` to override. Interim re-paints redraw it too, so the clock stays visible and updates about once a minute.
 
 Copy the updated `extensions/oink/` folder onto the Kindle (or at least `config.sh`, `common.sh`, `start.sh`, `update.sh`) and **Stop → Start** for the new loop to take effect.
 
@@ -125,16 +125,20 @@ ps | grep oink
 kill -0 "$(cat /mnt/us/extensions/oink/oink.pid)" && echo running
 ```
 
+## USB drive mode
+
+With `QUIT_ON_USB=1` (default), Oink **stops itself** within a few seconds of the Kindle entering USB mass-storage / drive mode, resumes the framework, and returns Home so the computer can mount the disk cleanly. A plain wall charger does **not** trigger this — always-on USB power is fine.
+
+After unplugging, start Oink again from KUAL.
+
+Disable with `QUIT_ON_USB=0` in `config.sh` if you prefer to Stop manually.
+
 ## Stop over USB if KUAL is unavailable
 
-1. Connect USB and open the Kindle drive.
-2. Create an empty file named `STOP` inside `extensions/oink/` **or** (preferred) use SSH:
-
-   ```sh
-   sh /mnt/us/extensions/oink/stop.sh
-   ```
-
-3. If SSH is unavailable, reboot the Kindle. Because Oink does not modify the root filesystem or disable the framework permanently, a reboot returns you to a normal Kindle. You may still want to delete `oink.pid` and clear `preventScreenSaver` after reboot:
+1. Connect USB and open the Kindle drive (Oink should already have quit if `QUIT_ON_USB=1`).
+2. Or create an empty file named `STOP` inside `extensions/oink/` — the daemon checks for it every few seconds and shuts down.
+3. Or over SSH: `sh /mnt/us/extensions/oink/stop.sh`
+4. If nothing else works, reboot. Oink does not permanently disable the framework; after reboot you may still want:
 
    ```sh
    rm -f /mnt/us/extensions/oink/oink.pid

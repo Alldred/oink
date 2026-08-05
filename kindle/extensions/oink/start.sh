@@ -74,32 +74,64 @@ log "Oink started (pid $$, refresh=${REFRESH_SECONDS}s, repaint=${REPAINT_SECOND
 sleep 2
 suspend_kindle_ui
 show_splash
+# Brief pause so the splash is actually visible on e-ink before we replace it.
+sleep 1
 
-_paint_once() {
-    _dl="$(download_dashboard)"
-    case "$_dl" in
-        new|same)
-            display_dashboard 1 || true
-            return 0
-            ;;
-    esac
+# Leave the splash with a full refresh onto the last-good dashboard (if any),
+# so startup never sits on splash through a slow/failed download, and splash
+# ink is fully cleared rather than ghosting under a partial paint.
+_have_cache=0
+if [ -f "$DASHBOARD_FILE" ]; then
+    log "Full refresh from cache after splash"
+    display_dashboard 1 || true
+    _have_cache=1
+fi
 
-    log "Download failed; displaying cached image if present"
-    if [ -f "$DASHBOARD_FILE" ]; then
+_dl="$(download_dashboard)"
+case "$_dl" in
+    new)
+        log "Initial download: new image"
         display_dashboard 1 || true
-        return 0
-    fi
-
-    show_status "Oink: download failed"
-    return 1
-}
-
-_paint_once || true
+        ;;
+    same)
+        log "Initial download: unchanged"
+        # Already full-refreshed from cache above; if this is a first-ever
+        # install with no prior cache path, paint now.
+        if [ "$_have_cache" -eq 0 ]; then
+            display_dashboard 1 || true
+        fi
+        ;;
+    *)
+        log "Initial download failed; keeping post-splash image if present"
+        if [ "$_have_cache" -eq 0 ]; then
+            if [ -f "$DASHBOARD_FILE" ]; then
+                display_dashboard 1 || true
+            else
+                show_status "Oink: download failed"
+            fi
+        fi
+        ;;
+esac
 
 _elapsed=0
+_since_paint=0
+# Poll often enough that plugging into a computer stops Oink quickly, without
+# re-painting the e-ink every few seconds.
+_POLL_SECONDS=5
 while true; do
-    sleep "$REPAINT_SECONDS" || sleep 60
-    _elapsed=$((_elapsed + REPAINT_SECONDS))
+    sleep "$_POLL_SECONDS" || sleep 5
+    _elapsed=$((_elapsed + _POLL_SECONDS))
+    _since_paint=$((_since_paint + _POLL_SECONDS))
+
+    _stop_reason="$(should_self_stop || true)"
+    if [ -n "$_stop_reason" ]; then
+        self_stop "$_stop_reason"
+    fi
+
+    if [ "$_since_paint" -lt "$REPAINT_SECONDS" ]; then
+        continue
+    fi
+    _since_paint=0
 
     prevent_screensaver || true
 

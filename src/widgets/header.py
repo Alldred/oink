@@ -19,10 +19,9 @@ class HeaderWidget(Widget):
         self.date_format = date_format
 
     def draw(self, image: Image.Image, draw: ImageDraw.ImageDraw, context: dict[str, Any]) -> None:
-        fonts_dir = context["fonts_dir"]
         now = self.now(context)
 
-        date_font = self.load_font(fonts_dir, size=24, bold=False)
+        date_font = self.font(context, 24, bold=False)
         date_text = self._format(now, self.date_format, fallback="%A %d %B")
 
         r = self.rect

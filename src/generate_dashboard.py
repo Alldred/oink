@@ -25,7 +25,9 @@ if str(SRC_DIR) not in sys.path:
 
 from layout import build_default_layout
 from renderer import DEFAULT_TIMEZONE, Renderer, configure_logging
-from weather import FIXTURE_NAMES, build_fixture
+from weather import FIXTURE_NAMES, build_fixture, fetch_weather_resilient
+
+DEFAULT_WEATHER_CACHE = ROOT_DIR / "public" / ".weather-cache.json"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,6 +66,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--weather-cache",
+        type=Path,
+        default=DEFAULT_WEATHER_CACHE,
+        help="JSON cache for last-good Open-Meteo data (used when live fetch fails)",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -85,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     weather = None
+    weather_stale = False
     now = None
     if args.test is not None:
         try:
@@ -95,6 +104,17 @@ def main(argv: list[str] | None = None) -> int:
         tz = ZoneInfo(args.timezone)
         # Mid-afternoon so Temp/UV "current / rest of day" maxes are interesting.
         now = datetime.now(tz).replace(hour=14, minute=0, second=0, microsecond=0)
+    else:
+        # Resolve weather up front so a total outage fails the run (CI keeps the
+        # previous Pages deploy) instead of publishing five error boxes.
+        try:
+            weather, weather_stale = fetch_weather_resilient(
+                cache_path=args.weather_cache.resolve(),
+                timezone=args.timezone,
+            )
+        except Exception as exc:  # noqa: BLE001 - surface as CLI failure
+            print(f"error: weather unavailable: {exc}", file=sys.stderr)
+            return 1
 
     if args.output is None:
         if args.test is not None:
@@ -109,13 +129,21 @@ def main(argv: list[str] | None = None) -> int:
             fonts_dir=fonts_dir,
             timezone=args.timezone,
         )
-        output = renderer.save(args.output, now=now, weather=weather)
+        output = renderer.save(
+            args.output,
+            now=now,
+            weather=weather,
+            weather_stale=weather_stale,
+            weather_cache_path=args.weather_cache.resolve(),
+        )
     except Exception as exc:  # noqa: BLE001 - top-level CLI error boundary
         print(f"error: failed to generate dashboard: {exc}", file=sys.stderr)
         return 1
 
     if args.test is not None:
         print(f"Test fixture '{args.test}' → {output}")
+    elif weather_stale:
+        print(f"Dashboard written to {output} (stale weather cache)")
     else:
         print(f"Dashboard written to {output}")
     return 0

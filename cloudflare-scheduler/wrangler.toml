@@ -1,0 +1,15 @@
+name = "oink-scheduler"
+main = "src/index.js"
+compatibility_date = "2025-08-01"
+
+# Needed so https://oink-scheduler.<you>.workers.dev works for manual testing.
+# Without this, curl can return HTTP 404 with Cloudflare error code 1042.
+workers_dev = true
+
+# Same cadence as the former GitHub Actions schedule (UTC).
+# Four slots/hour, offset from :00/:30 so misses recover within ~15 minutes.
+[triggers]
+crons = ["7 * * * *", "22 * * * *", "37 * * * *", "52 * * * *"]
+
+# GITHUB_TOKEN is set via: npx wrangler secret put GITHUB_TOKEN
+# Do not put secrets in this file.

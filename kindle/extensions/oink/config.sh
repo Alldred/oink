@@ -25,6 +25,13 @@ STOP_FRAMEWORK=1
 # Re-paint the cached PNG this often (seconds) between downloads.
 REPAINT_SECONDS=60
 
-# Draw local HH:MM in the upper-left after every paint (eips text overlay).
-# Set to 0 to disable. Optional CLOCK_COL / CLOCK_ROW override position.
+# Quit Oink when the Kindle enters USB drive / mass-storage mode (so the Mac
+# can mount the disk and the framework can come back). Does NOT quit on a
+# plain wall charger — always-on USB power is fine. Set to 0 to disable.
+QUIT_ON_USB=1
+
+# Draw local HH:MM top-right after every paint (eips text overlay), aligned
+# with the PNG date header. Set to 0 to disable. Leave CLOCK_COL unset for
+# auto right-edge placement. CLOCK_ROW=1 matches the header band (0 is flush top).
 CLOCK_OVERLAY=1
+CLOCK_ROW=1

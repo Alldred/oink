@@ -46,6 +46,12 @@ mkdir -p "$CACHE_DIR" "$LOG_DIR"
 log() {
     _ts="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)"
     echo "$_ts $*" >> "$LOG_FILE"
+    # Bound log growth on the small Kindle userstore (~512KB cap, keep half).
+    _sz="$(wc -c < "$LOG_FILE" 2>/dev/null | tr -d ' ')"
+    if [ -n "$_sz" ] && [ "$_sz" -gt 524288 ]; then
+        tail -c 262144 "$LOG_FILE" > "$LOG_FILE.rot" 2>/dev/null && \
+            mv -f "$LOG_FILE.rot" "$LOG_FILE"
+    fi
 }
 
 log_console() {
@@ -121,6 +127,48 @@ allow_screensaver() {
         lipc-set-prop -i com.lab126.powerd preventScreenSaver 0 2>/dev/null || \
             log "WARN: could not set preventScreenSaver=0"
     fi
+}
+
+usb_drive_mode_active() {
+    # True only for USB mass-storage / drive mode — not wall-charger power.
+    # (Oink is meant to stay running on USB power for always-on use.)
+    _dms="$(lipc-get-prop com.lab126.volumd driveModeState 2>/dev/null || echo 0)"
+    case "$_dms" in
+        ''|0) ;;
+        *) return 0 ;;
+    esac
+    # When USBMS claims the userstore it is unmounted from the Kindle side.
+    if ! grep -Eq ' /(mnt/us|mnt/base-us) ' /proc/mounts 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+should_self_stop() {
+    load_config || true
+    if [ -f "$OINK_DIR/STOP" ]; then
+        echo "STOP file"
+        return 0
+    fi
+    if [ "${QUIT_ON_USB:-1}" != "0" ] && usb_drive_mode_active; then
+        echo "USB drive mode"
+        return 0
+    fi
+    return 1
+}
+
+self_stop() {
+    # Graceful shutdown from inside the daemon (no kill needed).
+    _reason="${1:-requested}"
+    log "Self-stop: $_reason"
+    rm -f "$OINK_DIR/STOP" 2>/dev/null || true
+    remove_pid
+    resume_kindle_ui || log "WARN: resume_kindle_ui reported failure"
+    eips -c 2>>"$LOG_FILE" || /usr/sbin/eips -c 2>>"$LOG_FILE" || true
+    sleep 1
+    return_to_kindle_home || true
+    log "Oink stopped ($_reason)"
+    exit 0
 }
 
 framework_stop() {
@@ -225,10 +273,20 @@ validate_png() {
 
     _magic="$(dd if="$_file" bs=8 count=1 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')"
     case "$_magic" in
-        89504e470d0a1a0a*) return 0 ;;
+        89504e470d0a1a0a*) ;;
+        *)
+            log "WARN: PNG magic header mismatch (got '$_magic')"
+            return 1
+            ;;
     esac
 
-    log "WARN: PNG magic header mismatch (got '$_magic')"
+    # IHDR width/height at byte offset 16: expect 600×800 (00 00 02 58 / 00 00 03 20).
+    _ihdr="$(dd if="$_file" bs=1 skip=16 count=8 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')"
+    case "$_ihdr" in
+        0000025800000320*) return 0 ;;
+    esac
+
+    log "WARN: PNG dimensions not 600x800 (IHDR '$_ihdr')"
     return 1
 }
 
@@ -334,20 +392,45 @@ display_dashboard() {
     return 0
 }
 
+# eips text grid helpers for top-right HH:MM aligned with the PNG date header.
+# Uses a conservative ~16px cell so cols stay on-screen even when the firmware
+# text grid is tighter than the common 50-col assumption.
+# CLOCK_COL=44 previously drew off-grid and the clock vanished.
+# Header date band is y≈14–42 on the 600×800 PNG → eips row 1 matches it.
+clock_default_col() {
+    _xres=""
+    _info="$(eips -i 2>/dev/null || /usr/sbin/eips -i 2>/dev/null || true)"
+    if [ -n "$_info" ]; then
+        _xres="$(echo "$_info" | grep 'xres:' | head -1 | awk '{print $2}')"
+    fi
+    case "$_xres" in
+        ''|*[!0-9]*) _xres=600 ;;
+    esac
+    _cols=$((_xres / 16))
+    [ "$_cols" -ge 10 ] || _cols=37
+    _col=$((_cols - 5 - 1))
+    [ "$_col" -ge 1 ] || _col=1
+    echo "$_col"
+}
+
 overlay_clock() {
-    # Local device time in the upper-left margin (date is centred on the PNG).
+    # Local device time, top-right, same band as the centred date header.
     # Redrawn after every paint so interim re-paints do not wipe it.
     load_config || true
     if [ "${CLOCK_OVERLAY:-1}" = "0" ]; then
         return 0
     fi
-    _col="${CLOCK_COL:-1}"
-    _row="${CLOCK_ROW:-0}"
+    if [ -n "${CLOCK_COL:-}" ]; then
+        _col="$CLOCK_COL"
+    else
+        _col="$(clock_default_col)"
+    fi
+    _row="${CLOCK_ROW:-1}"
     _now="$(date '+%H:%M' 2>/dev/null || date '+%H:%M')"
     [ -n "$_now" ] || return 1
     eips "$_col" "$_row" "$_now" 2>/dev/null || \
         /usr/sbin/eips "$_col" "$_row" "$_now" 2>/dev/null || {
-            log "WARN: clock overlay failed"
+            log "WARN: clock overlay failed (col=$_col row=$_row)"
             return 1
         }
     return 0
