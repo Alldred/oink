@@ -65,31 +65,45 @@ def chart_points(
     smooth: bool = False,
     preserve_values: bool = False,
     steps_per_segment: int = 16,
+    soften_passes: int = 3,
+    anchor_step: int = 2,
+    value_floor: float | None = None,
 ) -> list[tuple[int, int]]:
     """Map hourly values to canvas points; optional Catmull-Rom curve.
 
     ``preserve_values=True`` splines through every hourly sample (needed for UV
     so peaks still reach their true level). Otherwise the curve is softened.
+    ``value_floor`` clamps spline overshoot (e.g. 0 for rainfall).
     """
     width = right - left
     n = len(values)
     if n == 0:
         return []
+
+    def clamp(value: float) -> float:
+        v = float(value)
+        return v if value_floor is None else max(value_floor, v)
+
     if n == 1 or not smooth:
         points: list[tuple[int, int]] = []
         for i, value in enumerate(values):
             x = left + int((i / (n - 1)) * width) if n > 1 else left
-            points.append((x, y_for_value(value, top, bottom)))
+            points.append((x, y_for_value(clamp(value), top, bottom)))
         return points
 
     if preserve_values:
         samples = smooth_series(values, steps_per_segment=steps_per_segment)
     else:
-        samples = soft_hourly_curve(values, steps_per_segment=steps_per_segment)
+        samples = soft_hourly_curve(
+            values,
+            steps_per_segment=steps_per_segment,
+            soften_passes=soften_passes,
+            anchor_step=anchor_step,
+        )
     points = []
     for index, value in samples:
         x = left + int((index / (n - 1)) * width)
-        points.append((x, y_for_value(value, top, bottom)))
+        points.append((x, y_for_value(clamp(value), top, bottom)))
     return points
 
 
@@ -110,16 +124,19 @@ def soft_hourly_curve(
     values: tuple[float, ...],
     *,
     steps_per_segment: int = 16,
+    soften_passes: int = 3,
+    anchor_step: int = 2,
 ) -> list[tuple[float, float]]:
-    """Soften, thin to ~2-hour anchors, then Catmull-Rom for a gentle curve."""
-    softened = soften_series(values, passes=3)
+    """Soften, thin to sparse anchors, then Catmull-Rom for a gentle curve."""
+    softened = soften_series(values, passes=soften_passes)
     n = len(softened)
     if n < 3:
         return [(float(i), float(v)) for i, v in enumerate(softened)]
 
-    # Keep endpoints and every second hour so the spline isn't forced through
+    step = max(1, int(anchor_step))
+    # Keep endpoints and every Nth hour so the spline isn't forced through
     # every hourly wiggle.
-    anchor_idx = list(range(0, n, 2))
+    anchor_idx = list(range(0, n, step))
     if anchor_idx[-1] != n - 1:
         anchor_idx.append(n - 1)
     anchors = tuple(softened[i] for i in anchor_idx)
@@ -207,6 +224,48 @@ def draw_now_marker(
     r = radius
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255, outline=0, width=2)
     draw.ellipse([cx - 1, cy - 1, cx + 1, cy + 1], fill=0)
+
+
+def draw_dotted_curve(
+    draw: ImageDraw.ImageDraw,
+    points: list[tuple[int, int]],
+    *,
+    fill: int = 40,
+    width: int = 2,
+    dash: int = 5,
+    gap: int = 4,
+) -> None:
+    """Stroke a polyline with dashes only — no area fill."""
+    if len(points) < 2:
+        return
+
+    drawing = True
+    remaining = float(dash)
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        dx = float(x1 - x0)
+        dy = float(y1 - y0)
+        seg_len = math.hypot(dx, dy)
+        if seg_len < 1e-6:
+            continue
+        ux, uy = dx / seg_len, dy / seg_len
+        traveled = 0.0
+        cx, cy = float(x0), float(y0)
+        while traveled < seg_len:
+            step = min(remaining, seg_len - traveled)
+            nx = cx + ux * step
+            ny = cy + uy * step
+            if drawing:
+                draw.line(
+                    [(int(round(cx)), int(round(cy))), (int(round(nx)), int(round(ny)))],
+                    fill=fill,
+                    width=width,
+                )
+            cx, cy = nx, ny
+            traveled += step
+            remaining -= step
+            if remaining <= 1e-6:
+                drawing = not drawing
+                remaining = float(dash if drawing else gap)
 
 
 def draw_area_curve(

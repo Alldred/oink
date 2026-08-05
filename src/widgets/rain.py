@@ -10,6 +10,8 @@ from weather import get_weather
 from widgets.charts import (
     AXIS_LABEL_WIDTH,
     VERTICAL_LABEL_WIDTH,
+    chart_points,
+    draw_dotted_curve,
     draw_hline,
     draw_metric,
     draw_time_grid,
@@ -25,6 +27,10 @@ LIGHT_MM = 2.5
 MODERATE_MM = 7.5
 HEAVY_MM = 15.0
 BANDS = (("High", HEAVY_MM), ("Med", MODERATE_MM), ("Low", LIGHT_MM))
+
+# Tomorrow overlay: secondary to today's black bars.
+TOMORROW_STROKE = 145
+TOMORROW_WIDTH = 2
 
 
 class RainForecastWidget(Widget):
@@ -48,6 +54,7 @@ class RainForecastWidget(Widget):
 
         r = self.rect
         values = weather.hourly_precipitation
+        tomorrow = weather.hourly_precipitation_tomorrow
 
         chart_left = r.x + VERTICAL_LABEL_WIDTH + AXIS_LABEL_WIDTH
         chart_right = r.right - 2
@@ -58,6 +65,11 @@ class RainForecastWidget(Widget):
 
         def y_for(value: float, top: int, bottom: int) -> int:
             return y_scale(value, 0.0, HEAVY_MM, top, bottom)
+
+        def y_for_tomorrow(value: float, top: int, bottom: int) -> int:
+            # Floor at zero; keep stroke centre above the axis so width doesn't bleed under.
+            y = y_scale(max(0.0, value), 0.0, HEAVY_MM, top, bottom)
+            return min(y, bottom - max(1, TOMORROW_WIDTH // 2))
 
         axis_x = r.x + VERTICAL_LABEL_WIDTH
         for name, mm in BANDS:
@@ -78,6 +90,24 @@ class RainForecastWidget(Widget):
             font=axis_font,
             show_labels=self.show_times,
         )
+
+        # Tomorrow first so today's bars sit on top where they overlap.
+        if tomorrow:
+            points = chart_points(
+                tomorrow,
+                chart_left,
+                chart_right,
+                chart_top,
+                chart_bottom,
+                y_for_value=y_for_tomorrow,
+                smooth=True,
+                soften_passes=5,
+                anchor_step=3,
+                value_floor=0.0,
+            )
+            draw_dotted_curve(draw, points, fill=TOMORROW_STROKE, width=TOMORROW_WIDTH)
+            # Re-ink the zero axis so any residual stroke doesn't read as negative rain.
+            draw_hline(draw, chart_left, chart_right, chart_bottom, fill=130)
 
         width = chart_right - chart_left
         slot = width / 24

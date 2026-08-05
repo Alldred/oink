@@ -36,7 +36,7 @@ MAX_RESPONSE_BYTES = 1_000_000
 
 @dataclass(frozen=True)
 class WeatherData:
-    """One local-calendar-day forecast snapshot."""
+    """Today's forecast snapshot, plus optional tomorrow hourly overlays."""
 
     location: str
     weather_code: int
@@ -48,6 +48,10 @@ class WeatherData:
     hourly_uv_index: tuple[float, ...]
     hourly_temperature: tuple[float, ...]
     hourly_weather_code: tuple[int, ...]
+    # Next-day hourly series for chart overlays (empty when unavailable).
+    hourly_precipitation_tomorrow: tuple[float, ...] = ()
+    hourly_uv_index_tomorrow: tuple[float, ...] = ()
+    hourly_temperature_tomorrow: tuple[float, ...] = ()
 
     @property
     def hours(self) -> int:
@@ -67,7 +71,7 @@ def fetch_weather(
             "latitude": f"{latitude:.4f}",
             "longitude": f"{longitude:.4f}",
             "timezone": timezone,
-            "forecast_days": 1,
+            "forecast_days": 2,
             "daily": ",".join(
                 [
                     "weather_code",
@@ -216,6 +220,15 @@ def load_weather_cache(path: Path) -> WeatherData | None:
             hourly_weather_code=_normalize_hours_int(
                 [_coerce_int(v, default=0) for v in payload["hourly_weather_code"]]
             ),
+            hourly_precipitation_tomorrow=_optional_hours(
+                payload.get("hourly_precipitation_tomorrow")
+            ),
+            hourly_uv_index_tomorrow=_optional_hours(
+                payload.get("hourly_uv_index_tomorrow")
+            ),
+            hourly_temperature_tomorrow=_optional_hours(
+                payload.get("hourly_temperature_tomorrow")
+            ),
         )
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         logger.warning("Ignoring unreadable weather cache %s: %s", path, exc)
@@ -232,10 +245,10 @@ def _parse_payload(payload: dict[str, Any], *, location: str) -> WeatherData:
     try:
         daily = payload["daily"]
         hourly = payload["hourly"]
-        precip = _normalize_hours(_series_float(hourly["precipitation"]))
-        uv = _normalize_hours(_series_float(hourly["uv_index"]))
-        temps = _normalize_hours(_series_float(hourly["temperature_2m"], carry=True))
-        codes = _normalize_hours_int(_series_int(hourly["weather_code"], carry=True))
+        precip_all = _series_float(hourly["precipitation"])
+        uv_all = _series_float(hourly["uv_index"])
+        temps_all = _series_float(hourly["temperature_2m"], carry=True)
+        codes_all = _series_int(hourly["weather_code"], carry=True)
         return WeatherData(
             location=location,
             weather_code=_coerce_int(daily["weather_code"][0], default=0),
@@ -243,10 +256,13 @@ def _parse_payload(payload: dict[str, Any], *, location: str) -> WeatherData:
             temperature_min=_coerce_float(daily["temperature_2m_min"][0], default=0.0),
             precipitation_sum=_coerce_float(daily["precipitation_sum"][0], default=0.0),
             uv_index_max=_coerce_float(daily["uv_index_max"][0], default=0.0),
-            hourly_precipitation=precip,
-            hourly_uv_index=uv,
-            hourly_temperature=temps,
-            hourly_weather_code=codes,
+            hourly_precipitation=_hours_for_day(precip_all, 0),
+            hourly_uv_index=_hours_for_day(uv_all, 0),
+            hourly_temperature=_hours_for_day(temps_all, 0),
+            hourly_weather_code=_hours_for_day_int(codes_all, 0),
+            hourly_precipitation_tomorrow=_hours_for_day(precip_all, 1),
+            hourly_uv_index_tomorrow=_hours_for_day(uv_all, 1),
+            hourly_temperature_tomorrow=_hours_for_day(temps_all, 1),
         )
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise RuntimeError(f"Unexpected Open-Meteo payload: {exc}") from exc
@@ -307,3 +323,27 @@ def _normalize_hours_int(values: list[int], target: int = HOURS_PER_DAY) -> tupl
         return tuple(values[:target])
     pad = values[-1] if values else 0
     return tuple(values + [pad] * (target - len(values)))
+
+
+def _hours_for_day(values: list[float], day: int) -> tuple[float, ...]:
+    """Slice a multi-day hourly series into one local day, or empty if missing."""
+    start = day * HOURS_PER_DAY
+    chunk = values[start : start + HOURS_PER_DAY]
+    if not chunk:
+        return ()
+    return _normalize_hours(list(chunk))
+
+
+def _hours_for_day_int(values: list[int], day: int) -> tuple[int, ...]:
+    start = day * HOURS_PER_DAY
+    chunk = values[start : start + HOURS_PER_DAY]
+    if not chunk:
+        return ()
+    return _normalize_hours_int(list(chunk))
+
+
+def _optional_hours(raw: Any) -> tuple[float, ...]:
+    """Load an optional cached tomorrow series; missing/invalid → empty."""
+    if not isinstance(raw, list) or not raw:
+        return ()
+    return _normalize_hours([_coerce_float(v, default=0.0) for v in raw])

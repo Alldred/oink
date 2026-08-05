@@ -13,6 +13,7 @@ from widgets.charts import (
     VERTICAL_LABEL_WIDTH,
     chart_points,
     current_and_remaining_max,
+    draw_dotted_curve,
     draw_hline,
     draw_metric,
     draw_now_marker,
@@ -79,9 +80,12 @@ class UVForecastWidget(Widget):
 
         r = self.rect
         values = weather.hourly_uv_index
+        tomorrow = weather.hourly_uv_index_tomorrow
         now = self.now(context)
         current, rest_max = current_and_remaining_max(values, now)
         day_peak = max(values) if values else 0.0
+        if tomorrow:
+            day_peak = max(day_peak, max(tomorrow))
         scale_max = float(uv_scale_max(day_peak))
         ticks = uv_axis_ticks(int(scale_max))
 
@@ -144,6 +148,18 @@ class UVForecastWidget(Widget):
             chart_bottom,
             grey_for_value=uv_fill_grey,
         )
+        if tomorrow:
+            tomorrow_points = chart_points(
+                tomorrow,
+                chart_left,
+                chart_right,
+                chart_top,
+                chart_bottom,
+                y_for_value=y_for,
+                smooth=True,
+                preserve_values=True,
+            )
+            draw_dotted_curve(draw, tomorrow_points)
         # Grid on top so curves don't hide axis / time lines.
         draw_guides()
         draw_now_marker(

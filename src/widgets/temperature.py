@@ -13,6 +13,7 @@ from widgets.charts import (
     chart_points,
     current_and_remaining_max,
     draw_area_curve,
+    draw_dotted_curve,
     draw_hline,
     draw_metric,
     draw_now_marker,
@@ -47,10 +48,12 @@ class TemperatureForecastWidget(Widget):
 
         r = self.rect
         values = weather.hourly_temperature
+        tomorrow = weather.hourly_temperature_tomorrow
         now = self.now(context)
         current, rest_max = current_and_remaining_max(values, now)
-        lo = min(values)
-        hi = max(values)
+        series = values + tomorrow if tomorrow else values
+        lo = min(series)
+        hi = max(series)
         span = max(4.0, hi - lo)
         pad = max(0.8, span * 0.1)
         guide_values = nice_axis_ticks(lo - pad, hi + pad, max_ticks=9)
@@ -103,6 +106,17 @@ class TemperatureForecastWidget(Widget):
             smooth=True,
         )
         draw_area_curve(draw, points, chart_bottom, image=image)
+        if tomorrow:
+            tomorrow_points = chart_points(
+                tomorrow,
+                chart_left,
+                chart_right,
+                chart_top,
+                chart_bottom,
+                y_for_value=y_for,
+                smooth=True,
+            )
+            draw_dotted_curve(draw, tomorrow_points)
         # Grid on top so curves don't hide axis / time lines.
         draw_guides()
         draw_now_marker(
