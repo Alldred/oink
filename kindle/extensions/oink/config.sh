@@ -24,3 +24,7 @@ STOP_FRAMEWORK=1
 
 # Re-paint the cached PNG this often (seconds) between downloads.
 REPAINT_SECONDS=60
+
+# Draw local HH:MM in the upper-left after every paint (eips text overlay).
+# Set to 0 to disable. Optional CLOCK_COL / CLOCK_ROW override position.
+CLOCK_OVERLAY=1

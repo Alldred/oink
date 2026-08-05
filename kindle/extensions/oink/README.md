@@ -39,7 +39,9 @@ Target device: **Kindle Basic, 7th generation (WP63GW), firmware 5.12.2.2**, wit
 
 **Start returns to Home by design** (KUAL `exitmenu`). The home booklet can redraw over a too-early `eips` paint, so the daemon waits ~3s after Start and paints again. If you only ever see Home, check `logs/oink.log` and confirm `config.sh` has a working PNG URL.
 
-Polls Pages every **5 minutes** by default (`REFRESH_SECONDS`) so a delayed GitHub Actions publish does not leave a long gap. Copy the updated `extensions/oink/` folder onto the Kindle (or at least `config.sh`, `common.sh`, `start.sh`, `update.sh`) and **Stop → Start** for the new loop to take effect.
+Polls Pages every **5 minutes** by default (`REFRESH_SECONDS`) so a delayed GitHub Actions publish does not leave a long gap. After each paint, Oink overlays the device clock (`HH:MM`) in the upper left via `eips` text (`CLOCK_OVERLAY=1`). Interim re-paints redraw it too, so the clock stays visible and updates about once a minute.
+
+Copy the updated `extensions/oink/` folder onto the Kindle (or at least `config.sh`, `common.sh`, `start.sh`, `update.sh`) and **Stop → Start** for the new loop to take effect.
 
 ## Files
 

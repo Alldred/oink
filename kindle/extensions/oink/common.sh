@@ -329,7 +329,27 @@ display_dashboard() {
         fi
     fi
 
+    overlay_clock || true
     log "Displayed dashboard (full_refresh=$_full)"
+    return 0
+}
+
+overlay_clock() {
+    # Local device time in the upper-left margin (date is centred on the PNG).
+    # Redrawn after every paint so interim re-paints do not wipe it.
+    load_config || true
+    if [ "${CLOCK_OVERLAY:-1}" = "0" ]; then
+        return 0
+    fi
+    _col="${CLOCK_COL:-1}"
+    _row="${CLOCK_ROW:-0}"
+    _now="$(date '+%H:%M' 2>/dev/null || date '+%H:%M')"
+    [ -n "$_now" ] || return 1
+    eips "$_col" "$_row" "$_now" 2>/dev/null || \
+        /usr/sbin/eips "$_col" "$_row" "$_now" 2>/dev/null || {
+            log "WARN: clock overlay failed"
+            return 1
+        }
     return 0
 }
 
