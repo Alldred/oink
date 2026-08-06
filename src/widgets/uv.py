@@ -167,7 +167,8 @@ class UVForecastWidget(Widget):
                 smooth=True,
                 preserve_values=True,
             )
-            draw_dotted_curve(draw, tomorrow_points)
+            # Flip to white over dark UV bands so tomorrow's dashes stay readable.
+            draw_dotted_curve(draw, tomorrow_points, image=image)
         # Grid on top so curves don't hide axis / time lines.
         draw_guides()
         draw_now_marker(

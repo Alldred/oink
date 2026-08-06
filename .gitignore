@@ -27,6 +27,7 @@ Thumbs.db
 # public/dashboard.png is intentionally committed as a placeholder
 public/.weather-cache.json
 public/.weather-cache.json.tmp
+public/dashboard-detail/
 
 # Line-animal generator (local MLX tooling; keep scripts, ignore caches)
 line-animals/.venv/

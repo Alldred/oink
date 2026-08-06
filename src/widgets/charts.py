@@ -260,10 +260,29 @@ def draw_dotted_curve(
     width: int = 2,
     dash: int = 5,
     gap: int = 4,
+    image: Image.Image | None = None,
+    light_fill: int = 255,
+    dark_threshold: int = 110,
 ) -> None:
-    """Stroke a polyline with dashes only — no area fill."""
+    """Stroke a polyline with dashes only — no area fill.
+
+    When ``image`` is given, sample luminance under each dash and switch to
+    ``light_fill`` over dark pixels so the stroke stays visible on shaded fills
+    (e.g. extreme UV bands).
+    """
     if len(points) < 2:
         return
+
+    pixels = image.load() if image is not None else None
+    img_w = image.width if image is not None else 0
+    img_h = image.height if image is not None else 0
+
+    def stroke_fill(x: float, y: float) -> int:
+        if pixels is None:
+            return fill
+        ix = max(0, min(img_w - 1, int(round(x))))
+        iy = max(0, min(img_h - 1, int(round(y))))
+        return light_fill if int(pixels[ix, iy]) < dark_threshold else fill
 
     drawing = True
     remaining = float(dash)
@@ -283,7 +302,7 @@ def draw_dotted_curve(
             if drawing:
                 draw.line(
                     [(int(round(cx)), int(round(cy))), (int(round(nx)), int(round(ny)))],
-                    fill=fill,
+                    fill=stroke_fill((cx + nx) * 0.5, (cy + ny) * 0.5),
                     width=width,
                 )
             cx, cy = nx, ny

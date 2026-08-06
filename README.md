@@ -22,9 +22,12 @@ Stress-test with synthetic data (no network):
 python src/generate_dashboard.py --test
 python src/generate_dashboard.py --test calm
 python src/generate_dashboard.py --test mixed
+python src/generate_dashboard.py --tests detail
 ```
 
 Fixtures: `stress` (UV 11, late heavy rain), `calm`, `mixed`. Writes `public/dashboard-<fixture>.png` by default.
+
+`detail` uses the stress fixture and writes a frame every 15 minutes from 00:00–23:45 into `public/dashboard-detail/` (96 PNGs) so you can scrub the now-marker across the day.
 
 ## Publish
 
