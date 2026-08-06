@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 from weather import get_weather
 from widgets.charts import (
     AXIS_LABEL_WIDTH,
+    DAY_HOURS,
     VERTICAL_LABEL_WIDTH,
     chart_points,
     current_and_remaining_max,
@@ -20,6 +21,7 @@ from widgets.charts import (
     draw_shaded_area_curve,
     draw_time_grid,
     draw_vertical_label,
+    extend_to_midnight,
     smooth_series,
     y_scale,
 )
@@ -129,8 +131,14 @@ class UVForecastWidget(Widget):
 
         draw_guides()
 
-        points = chart_points(
+        today_curve = extend_to_midnight(
             values,
+            midnight=tomorrow[0] if tomorrow else None,
+        )
+        tomorrow_curve = extend_to_midnight(tomorrow) if tomorrow else ()
+
+        points = chart_points(
+            today_curve,
             chart_left,
             chart_right,
             chart_top,
@@ -139,7 +147,7 @@ class UVForecastWidget(Widget):
             smooth=True,
             preserve_values=True,
         )
-        samples = smooth_series(values, steps_per_segment=16)
+        samples = smooth_series(today_curve, steps_per_segment=16)
         sample_values = tuple(v for _, v in samples)
         draw_shaded_area_curve(
             image,
@@ -148,9 +156,9 @@ class UVForecastWidget(Widget):
             chart_bottom,
             grey_for_value=uv_fill_grey,
         )
-        if tomorrow:
+        if tomorrow_curve:
             tomorrow_points = chart_points(
-                tomorrow,
+                tomorrow_curve,
                 chart_left,
                 chart_right,
                 chart_top,
@@ -168,7 +176,7 @@ class UVForecastWidget(Widget):
             left=chart_left,
             right=chart_right,
             now=now,
-            hours=len(values),
+            hours=DAY_HOURS,
         )
 
         draw_vertical_label(

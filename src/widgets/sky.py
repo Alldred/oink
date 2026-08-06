@@ -19,6 +19,8 @@ from .base import Rect, Widget
 
 # Show an icon every 2 hours so glyphs stay readable on 600px e-ink.
 ICON_STEP_HOURS = 2
+# Current 2-hour slot — large enough to read at a glance on 600px.
+ACTIVE_ICON_SIZE = 45
 
 
 class SkyTimelineWidget(Widget):
@@ -36,6 +38,7 @@ class SkyTimelineWidget(Widget):
     def draw(self, image: Image.Image, draw: ImageDraw.ImageDraw, context: dict[str, Any]) -> None:
         fonts_dir = context["fonts_dir"]
         weather = get_weather(context)
+        now = self.now(context)
 
         label_font = self.font(context, 22, bold=True)
         axis_font = self.font(context, 12, bold=False)
@@ -63,19 +66,32 @@ class SkyTimelineWidget(Widget):
         width = chart_right - chart_left
         hours = list(range(0, 24, ICON_STEP_HOURS))
         slot = width / 24
-        icon_size = min(chart_bottom - chart_top - 4, max(14, int(slot * ICON_STEP_HOURS * 0.75)))
+        max_icon = chart_bottom - chart_top - 2
+        active_size = min(max_icon, ACTIVE_ICON_SIZE)
+        # Uniform base size; active is obviously larger. Slight overlap is OK —
+        # active draws last. Avoid tiny squished neighbours.
+        icon_size = min(
+            max_icon,
+            active_size - 12,
+            max(16, int(slot * ICON_STEP_HOURS * 0.7)),
+        )
+        active_hour = (now.hour // ICON_STEP_HOURS) * ICON_STEP_HOURS
         cy = (chart_top + chart_bottom) // 2
 
-        for hour in hours:
+        ordered = [h for h in hours if h != active_hour] + (
+            [active_hour] if active_hour in hours else []
+        )
+        for hour in ordered:
             code = codes[hour] if hour < len(codes) else 3
             kind = icon_kind(code, hour=hour)
             cx = chart_left + int((hour + ICON_STEP_HOURS / 2) * slot)
+            size = active_size if hour == active_hour else icon_size
             draw_weather_icon(
                 draw,
                 kind,
                 cx=cx,
                 cy=cy,
-                size=icon_size,
+                size=size,
                 fill=0,
                 fonts_dir=fonts_dir,
                 image=image,

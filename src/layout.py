@@ -27,7 +27,7 @@ def build_default_layout() -> list[Widget]:
     Layout (portrait, top → bottom):
 
         ┌────────────────────────────┐
-        │           DATE             │
+        │ [animal]     DATE          │
         │         WHIMSY             │
         │           DAY              │
         │          RAIN              │
@@ -38,10 +38,12 @@ def build_default_layout() -> list[Widget]:
     content_width = CANVAS_WIDTH - (MARGIN * 2)
     content_top = MARGIN
 
-    header_height = 28
+    # Tall enough for a ~84px daily animal doodle beside the date.
+    header_height = 88
     gap = 6
     whimsy_height = 40
-    sky_height = 52
+    # Tall enough for the 45px active day icon.
+    sky_height = 56
 
     after_header = content_top + header_height
     whimsy_top = after_header + 2

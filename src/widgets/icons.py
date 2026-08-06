@@ -29,6 +29,21 @@ _WI_GLYPHS = {
     "storm": "\uf01e",         # wi-thunderstorm
 }
 
+# Bare cloudy/moon fill the box more than composite glyphs (partly, rain…),
+# so the cloud *shape* looks bigger there. Nudge those down so cloud weight
+# reads closer across kinds at the same ``size``.
+_WI_OPTICAL_SCALE = {
+    "sun": 1.0,
+    "moon": 0.90,
+    "cloud": 0.88,
+    "partly": 1.0,
+    "partly_night": 1.0,
+    "rain": 0.96,
+    "snow": 0.96,
+    "fog": 0.90,
+    "storm": 0.94,
+}
+
 
 _WI_FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 
@@ -86,22 +101,65 @@ def _draw_font_icon(
     fill: int,
     fonts_dir: Path,
 ) -> bool:
-    font = _wi_font(fonts_dir, max(12, size))
-    if font is None:
-        return False
+    """Render a Weather Icons glyph fitted into a ``size``×``size`` box.
+
+    Glyphs have uneven ink bounds (moon tiny, cloudy wide). Matching the
+    longest edge keeps every kind in the same box. Bare cloudy/moon also
+    get a slight optical shrink so their cloud mass doesn't dwarf the
+    smaller cloud inside composite glyphs like partly-cloudy.
+    """
+    optical = _WI_OPTICAL_SCALE.get(kind, 1.0)
+    target = max(12, int(round(size * optical)))
     glyph = _WI_GLYPHS.get(kind, _WI_GLYPHS["cloud"])
 
-    # Render glyph to a temp image so we can centre by ink bounds.
+    probe_px = 64
+    font_probe = _wi_font(fonts_dir, probe_px)
+    if font_probe is None:
+        return False
     probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    bbox = probe.textbbox((0, 0), glyph, font=font_probe)
+    tw = max(1, bbox[2] - bbox[0])
+    th = max(1, bbox[3] - bbox[1])
+    font_size = max(12, int(round(probe_px * target / max(tw, th))))
+    font = _wi_font(fonts_dir, font_size)
+    if font is None:
+        return False
+
+    # Render, crop to ink, and centre by ink *centroid* (not bbox mid).
+    # Partly/cloud glyphs are bottom-heavy; bbox-centring makes an enlarged
+    # active icon look top-aligned with the cloud mass hanging low.
     bbox = probe.textbbox((0, 0), glyph, font=font)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
+    tw = max(1, bbox[2] - bbox[0])
+    th = max(1, bbox[3] - bbox[1])
     pad = 2
     tmp = Image.new("L", (tw + pad * 2, th + pad * 2), 255)
     ImageDraw.Draw(tmp).text((pad - bbox[0], pad - bbox[1]), glyph, font=font, fill=fill)
+    ink = tmp.point(lambda p: 0 if p > 250 else 255)
+    ink_box = ink.getbbox()
+    if ink_box is None:
+        return False
+    tmp = tmp.crop(ink_box)
     mask = tmp.point(lambda p: 255 if p < 250 else 0)
-    x = cx - tmp.width // 2
-    y = cy - tmp.height // 2
+
+    # Centroid of dark pixels → visual mass sits on (cx, cy).
+    pixels = tmp.load()
+    w, h = tmp.size
+    mass = 0
+    mx = 0.0
+    my = 0.0
+    for yy in range(h):
+        for xx in range(w):
+            # Darker = more mass (tmp is grayscale ink on white).
+            weight = 255 - pixels[xx, yy]
+            if weight < 8:
+                continue
+            mass += weight
+            mx += xx * weight
+            my += yy * weight
+    if mass <= 0:
+        return False
+    x = int(round(cx - mx / mass))
+    y = int(round(cy - my / mass))
     image.paste(tmp, (x, y), mask)
     return True
 

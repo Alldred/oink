@@ -28,6 +28,13 @@ Thumbs.db
 public/.weather-cache.json
 public/.weather-cache.json.tmp
 
+# Line-animal generator (local MLX tooling; keep scripts, ignore caches)
+line-animals/.venv/
+line-animals/.env
+line-animals/candidates/
+line-animals/__pycache__/
+line-animals/uv.lock
+
 # Kindle runtime artefacts (if someone syncs device files back)
 kindle/extensions/oink/cache/
 kindle/extensions/oink/logs/

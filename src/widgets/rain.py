@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw
 from weather import get_weather
 from widgets.charts import (
     AXIS_LABEL_WIDTH,
+    DAY_HOURS,
     VERTICAL_LABEL_WIDTH,
     chart_points,
     draw_dotted_curve,
@@ -16,6 +17,7 @@ from widgets.charts import (
     draw_metric,
     draw_time_grid,
     draw_vertical_label,
+    extend_to_midnight,
     format_mm,
     y_scale,
 )
@@ -94,7 +96,7 @@ class RainForecastWidget(Widget):
         # Tomorrow first so today's bars sit on top where they overlap.
         if tomorrow:
             points = chart_points(
-                tomorrow,
+                extend_to_midnight(tomorrow),
                 chart_left,
                 chart_right,
                 chart_top,
@@ -110,7 +112,7 @@ class RainForecastWidget(Widget):
             draw_hline(draw, chart_left, chart_right, chart_bottom, fill=130)
 
         width = chart_right - chart_left
-        slot = width / 24
+        slot = width / DAY_HOURS
         bar_width = max(4, int(slot * 0.55))
         for hour, mm in enumerate(values):
             if mm <= 0:

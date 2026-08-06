@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw
 from weather import get_weather
 from widgets.charts import (
     AXIS_LABEL_WIDTH,
+    DAY_HOURS,
     VERTICAL_LABEL_WIDTH,
     chart_points,
     current_and_remaining_max,
@@ -19,6 +20,7 @@ from widgets.charts import (
     draw_now_marker,
     draw_time_grid,
     draw_vertical_label,
+    extend_to_midnight,
     format_temp,
     nice_axis_ticks,
     y_scale,
@@ -51,7 +53,13 @@ class TemperatureForecastWidget(Widget):
         tomorrow = weather.hourly_temperature_tomorrow
         now = self.now(context)
         current, rest_max = current_and_remaining_max(values, now)
-        series = values + tomorrow if tomorrow else values
+        # Join today→midnight with tomorrow's 00:00; hold tomorrow's 23:00 to 24:00.
+        today_curve = extend_to_midnight(
+            values,
+            midnight=tomorrow[0] if tomorrow else None,
+        )
+        tomorrow_curve = extend_to_midnight(tomorrow) if tomorrow else ()
+        series = today_curve + tomorrow_curve if tomorrow_curve else today_curve
         lo = min(series)
         hi = max(series)
         span = max(4.0, hi - lo)
@@ -97,7 +105,7 @@ class TemperatureForecastWidget(Widget):
         draw_guides()
 
         points = chart_points(
-            values,
+            today_curve,
             chart_left,
             chart_right,
             chart_top,
@@ -106,9 +114,9 @@ class TemperatureForecastWidget(Widget):
             smooth=True,
         )
         draw_area_curve(draw, points, chart_bottom, image=image)
-        if tomorrow:
+        if tomorrow_curve:
             tomorrow_points = chart_points(
-                tomorrow,
+                tomorrow_curve,
                 chart_left,
                 chart_right,
                 chart_top,
@@ -125,7 +133,7 @@ class TemperatureForecastWidget(Widget):
             left=chart_left,
             right=chart_right,
             now=now,
-            hours=len(values),
+            hours=DAY_HOURS,
         )
 
         draw_vertical_label(

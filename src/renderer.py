@@ -27,12 +27,14 @@ class Renderer:
         widgets: list[Widget],
         *,
         fonts_dir: Path,
+        assets_dir: Path | None = None,
         timezone: str = DEFAULT_TIMEZONE,
         width: int = CANVAS_WIDTH,
         height: int = CANVAS_HEIGHT,
     ) -> None:
         self.widgets = widgets
         self.fonts_dir = fonts_dir
+        self.assets_dir = assets_dir
         self.timezone = timezone
         self.width = width
         self.height = height
@@ -44,6 +46,7 @@ class Renderer:
         weather: Any | None = None,
         weather_stale: bool = False,
         weather_cache_path: Path | None = None,
+        random_animal: bool = False,
     ) -> Image.Image:
         """Return a mode-``L`` (8-bit grayscale) Pillow image."""
         try:
@@ -71,8 +74,12 @@ class Renderer:
             "width": self.width,
             "height": self.height,
             "weather_stale": weather_stale,
+            "random_animal": random_animal,
             "_font_cache": {},
         }
+        if self.assets_dir is not None:
+            context["assets_dir"] = self.assets_dir
+            context["animals_dir"] = self.assets_dir / "animals"
         if weather_cache_path is not None:
             context["weather_cache_path"] = weather_cache_path
         if weather is not None:
@@ -96,6 +103,7 @@ class Renderer:
         weather: Any | None = None,
         weather_stale: bool = False,
         weather_cache_path: Path | None = None,
+        random_animal: bool = False,
     ) -> Path:
         """Render and write a PNG suitable for Kindle ``eips -g``."""
         path = path.resolve()
@@ -106,6 +114,7 @@ class Renderer:
             weather=weather,
             weather_stale=weather_stale,
             weather_cache_path=weather_cache_path,
+            random_animal=random_animal,
         )
 
         # 8-bit grayscale PNG is the widely verified format for eips on

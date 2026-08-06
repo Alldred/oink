@@ -127,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         renderer = Renderer(
             widgets,
             fonts_dir=fonts_dir,
+            assets_dir=ROOT_DIR / "assets",
             timezone=args.timezone,
         )
         output = renderer.save(
@@ -135,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             weather=weather,
             weather_stale=weather_stale,
             weather_cache_path=args.weather_cache.resolve(),
+            random_animal=args.test is not None,
         )
     except Exception as exc:  # noqa: BLE001 - top-level CLI error boundary
         print(f"error: failed to generate dashboard: {exc}", file=sys.stderr)

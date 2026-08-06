@@ -8,9 +8,29 @@ from PIL import Image, ImageDraw, ImageFont
 
 TIME_LABELS = ((0, "00"), (6, "06"), (12, "12"), (18, "18"))
 
+# Open-Meteo hourly samples are 00..23; charts plot through 24:00 (midnight).
+DAY_HOURS = 24
+
 # Layout columns inside each chart widget.
 VERTICAL_LABEL_WIDTH = 26
 AXIS_LABEL_WIDTH = 36
+
+
+def extend_to_midnight(
+    values: tuple[float, ...],
+    *,
+    midnight: float | None = None,
+) -> tuple[float, ...]:
+    """Append a 24:00 sample so a 00..23 series reaches the chart's right edge.
+
+    Prefer ``midnight`` (e.g. tomorrow's 00:00 for today's curve). Otherwise
+    hold the 23:00 value — fine for tomorrow overlays where the next day
+    isn't fetched.
+    """
+    if not values:
+        return values
+    end = float(values[-1] if midnight is None else midnight)
+    return tuple(float(v) for v in values) + (end,)
 
 
 def draw_hline(draw: ImageDraw.ImageDraw, x0: int, x1: int, y: int, *, fill: int = 160) -> None:
@@ -68,28 +88,35 @@ def chart_points(
     soften_passes: int = 3,
     anchor_step: int = 2,
     value_floor: float | None = None,
+    day_hours: int = DAY_HOURS,
 ) -> list[tuple[int, int]]:
     """Map hourly values to canvas points; optional Catmull-Rom curve.
 
-    ``preserve_values=True`` splines through every hourly sample (needed for UV
-    so peaks still reach their true level). Otherwise the curve is softened.
-    ``value_floor`` clamps spline overshoot (e.g. 0 for rainfall).
+    Sample index is treated as the hour-of-day (0 = midnight start, 24 =
+    midnight end). Prefer ``extend_to_midnight`` so 00..23 series reach the
+    right edge. ``preserve_values=True`` splines through every hourly sample
+    (needed for UV so peaks still reach their true level). Otherwise the
+    curve is softened. ``value_floor`` clamps spline overshoot (e.g. 0 for
+    rainfall).
     """
     width = right - left
     n = len(values)
     if n == 0:
         return []
+    span = max(1, int(day_hours))
+
+    def hour_x(hour: float) -> int:
+        return left + int((hour / span) * width)
 
     def clamp(value: float) -> float:
         v = float(value)
         return v if value_floor is None else max(value_floor, v)
 
     if n == 1 or not smooth:
-        points: list[tuple[int, int]] = []
-        for i, value in enumerate(values):
-            x = left + int((i / (n - 1)) * width) if n > 1 else left
-            points.append((x, y_for_value(clamp(value), top, bottom)))
-        return points
+        return [
+            (hour_x(float(i)), y_for_value(clamp(value), top, bottom))
+            for i, value in enumerate(values)
+        ]
 
     if preserve_values:
         samples = smooth_series(values, steps_per_segment=steps_per_segment)
@@ -100,11 +127,10 @@ def chart_points(
             soften_passes=soften_passes,
             anchor_step=anchor_step,
         )
-    points = []
-    for index, value in samples:
-        x = left + int((index / (n - 1)) * width)
-        points.append((x, y_for_value(clamp(value), top, bottom)))
-    return points
+    return [
+        (hour_x(index), y_for_value(clamp(value), top, bottom))
+        for index, value in samples
+    ]
 
 
 def soften_series(values: tuple[float, ...], *, passes: int = 2) -> tuple[float, ...]:
@@ -192,15 +218,15 @@ def draw_now_marker(
     left: int,
     right: int,
     now,
-    hours: int = 24,
+    hours: int = DAY_HOURS,
     radius: int = 4,
 ) -> None:
     """Small circle on the curve at the current time-of-day."""
-    if len(points) < 2 or hours < 2:
+    if len(points) < 2 or hours < 1:
         return
     hour_f = float(now.hour) + now.minute / 60.0 + now.second / 3600.0
-    hour_f = max(0.0, min(float(hours - 1), hour_f))
-    target_x = left + (hour_f / (hours - 1)) * (right - left)
+    hour_f = max(0.0, min(float(hours), hour_f))
+    target_x = left + (hour_f / hours) * (right - left)
 
     # Interpolate along the polyline at target_x so the marker sits on the stroke.
     cx = int(round(target_x))
