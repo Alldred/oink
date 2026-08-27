@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import random
-from datetime import date
+from datetime import date, timedelta
 
 from weather.client import WeatherData
 
 # Sky buckets keyed from WMO codes (and a few weather overlays).
 Bucket = str
+
+# Day sentence covers 08:00–21:00. Flip to overnight at 20:00 so the
+# evening line talks about tonight instead of the last hour of "the day".
+DAY_START_HOUR = 8
+DAY_END_HOUR = 21
+OVERNIGHT_FLIP_HOUR = 20
 
 # Swappable animal pools. Use {Wet}/{wet}, {Smug}/{smug}, etc. in templates.
 # Capitalised form for sentence starts; lower form mid-sentence.
@@ -146,28 +152,115 @@ _STORM_WAIT: tuple[str, ...] = (
 )
 
 
-def sky_bucket(weather: WeatherData) -> Bucket:
-    """Map today's forecast into a humour bucket."""
-    code = int(weather.weather_code)
-    precip = float(weather.precipitation_sum)
-    t_max = float(weather.temperature_max)
-    t_min = float(weather.temperature_min)
+def remaining_daytime_hours(hour: int) -> range:
+    """Hour indexes still ahead in the 8am–9pm window. Empty after the 8pm flip."""
+    hour = int(hour)
+    if hour < DAY_START_HOUR or hour >= OVERNIGHT_FLIP_HOUR:
+        return range(0, 0)
+    return range(hour, DAY_END_HOUR)
 
-    if code in (95, 96, 99):
+
+def is_overnight(hour: int) -> bool:
+    """True from 8pm until 8am (the overnight sentence slot)."""
+    hour = int(hour)
+    return hour >= OVERNIGHT_FLIP_HOUR or hour < DAY_START_HOUR
+
+
+def _slice_hours(series: tuple, hours: range) -> list:
+    n = len(series)
+    return [series[h] for h in hours if 0 <= h < n]
+
+
+def _remaining_slot(weather: WeatherData, hour: int) -> tuple[list[int], float, float, float]:
+    """Codes, precip sum, and temp range for the active slot's remaining hours.
+
+    Until 8pm the day sentence looks ahead to 9pm. From 8pm the slot is
+    overnight through 8am, which runs into tomorrow morning; after midnight
+    it is today's pre-8am hours.
+    """
+    hour = int(hour)
+    codes: list[int] = []
+    precips: list[float] = []
+    temps: list[float] = []
+
+    def take(
+        code_series: tuple,
+        precip_series: tuple,
+        temp_series: tuple,
+        hours: range,
+    ) -> None:
+        codes.extend(int(c) for c in _slice_hours(code_series, hours))
+        precips.extend(float(v) for v in _slice_hours(precip_series, hours))
+        temps.extend(float(v) for v in _slice_hours(temp_series, hours))
+
+    if DAY_START_HOUR <= hour < OVERNIGHT_FLIP_HOUR:
+        take(
+            weather.hourly_weather_code,
+            weather.hourly_precipitation,
+            weather.hourly_temperature,
+            range(hour, DAY_END_HOUR),
+        )
+    elif hour >= OVERNIGHT_FLIP_HOUR:
+        take(
+            weather.hourly_weather_code,
+            weather.hourly_precipitation,
+            weather.hourly_temperature,
+            range(hour, 24),
+        )
+        take(
+            weather.hourly_weather_code_tomorrow,
+            weather.hourly_precipitation_tomorrow,
+            weather.hourly_temperature_tomorrow,
+            range(0, DAY_START_HOUR),
+        )
+    else:
+        take(
+            weather.hourly_weather_code,
+            weather.hourly_precipitation,
+            weather.hourly_temperature,
+            range(hour, DAY_START_HOUR),
+        )
+
+    if not codes and not precips:
+        return (
+            [int(weather.weather_code)],
+            float(weather.precipitation_sum),
+            float(weather.temperature_max),
+            float(weather.temperature_min),
+        )
+    precip = sum(precips) if precips else 0.0
+    t_max = max(temps) if temps else float(weather.temperature_max)
+    t_min = min(temps) if temps else float(weather.temperature_min)
+    if not codes:
+        codes = [int(weather.weather_code)]
+    return codes, precip, t_max, t_min
+
+
+def sky_bucket(weather: WeatherData, hour: int = 0) -> Bucket:
+    """Map the remainder of the active slot into a humour bucket.
+
+    Until 8pm the sentence is the waking day (looking ahead to 9pm). From 8pm
+    until 8am it is overnight. ``hour`` limits the look to hours still ahead,
+    so a wet start can give way to a dry line once that weather has passed.
+    """
+    codes, precip, t_max, t_min = _remaining_slot(weather, hour)
+
+    if any(c in (95, 96, 99) for c in codes):
         return "storm"
-    if code in (71, 73, 75, 77, 85, 86):
+    if any(c in (71, 73, 75, 77, 85, 86) for c in codes):
         return "snow"
-    if code in (45, 48):
-        return "fog"
-    if code in (65, 67, 82) or precip >= 8.0:
+    if any(c in (65, 67, 82) for c in codes) or precip >= 8.0:
         return "heavy"
-    if code in (80, 81) or (61 <= code <= 63) or (3.0 <= precip < 8.0):
+    if any(c in (80, 81) or 61 <= c <= 63 for c in codes) or (3.0 <= precip < 8.0):
         return "showers"
-    if code in (51, 53, 55, 56, 57) or (0.2 <= precip < 3.0):
+    if any(c in (51, 53, 55, 56, 57) for c in codes) or (0.2 <= precip < 3.0):
         return "drizzle"
+    if any(c in (45, 48) for c in codes):
+        return "fog"
+    code = 3 if 3 in codes else 2 if 2 in codes else 1 if 1 in codes else 0
     if code in (0, 1) and t_max >= 24.0:
         return "clear"
-    if code == 3 or code == 2:
+    if code in (2, 3):
         return "cloudy"
     if t_max <= 8.0 or t_min <= 2.0:
         return "cold"
@@ -217,15 +310,26 @@ def _fill_animals(template: str, rng: random.Random) -> str:
     )
 
 
-def pick_whimsy_line(weather: WeatherData, day: date) -> str:
-    """Pick a whimsical line that stays fixed for the calendar day.
+def _line_seed(day: date, hour: int) -> str:
+    """Stable seed for the active slot; overnight does not reshuffle at midnight."""
+    if int(hour) >= OVERNIGHT_FLIP_HOUR:
+        return f"{day.isoformat()}-overnight"
+    if int(hour) < DAY_START_HOUR:
+        return f"{(day - timedelta(days=1)).isoformat()}-overnight"
+    return day.isoformat()
 
-    The RNG is seeded only on ``day``, so half-hourly forecast refreshes
-    do not reshuffle the sentence. The weather bucket still chooses which
-    bank to draw from, so a big condition change can still retarget the line.
+
+def pick_whimsy_line(weather: WeatherData, day: date, hour: int = 0) -> str:
+    """Pick a whimsical line for the remainder of the active slot.
+
+    Until 8pm the line describes the waking day through 9pm; from 8pm it
+    describes overnight until 8am. The RNG is seeded on the slot (overnight
+    keeps last evening's date), so half-hourly refreshes do not reshuffle
+    the sentence while the weather bucket stays the same. ``hour`` limits
+    the look to hours still ahead.
     """
-    bucket = sky_bucket(weather)
-    rng = random.Random(day.isoformat())
+    bucket = sky_bucket(weather, hour)
+    rng = random.Random(_line_seed(day, hour))
 
     # Running joke: rare UK antelope on calm/clear/mild days only.
     if bucket in ("clear", "mild", "cloudy") and rng.randrange(20) == 0:

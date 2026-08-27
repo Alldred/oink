@@ -23,7 +23,7 @@ class WhimsyWidget(Widget):
     def draw(self, image: Image.Image, draw: ImageDraw.ImageDraw, context: dict[str, Any]) -> None:
         weather = get_weather(context)
         now = self.now(context)
-        line = pick_whimsy_line(weather, now.date())
+        line = pick_whimsy_line(weather, now.date(), hour=now.hour)
 
         font = self.font(context, 17, bold=False)
         r = self.rect

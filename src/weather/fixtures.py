@@ -30,6 +30,7 @@ def _require_tomorrow(weather: WeatherData) -> WeatherData:
         ("hourly_precipitation_tomorrow", weather.hourly_precipitation_tomorrow),
         ("hourly_temperature_tomorrow", weather.hourly_temperature_tomorrow),
         ("hourly_uv_index_tomorrow", weather.hourly_uv_index_tomorrow),
+        ("hourly_weather_code_tomorrow", weather.hourly_weather_code_tomorrow),
     )
     missing = [name for name, values in series if len(values) != HOURS_PER_DAY]
     if missing:
@@ -37,6 +38,23 @@ def _require_tomorrow(weather: WeatherData) -> WeatherData:
             f"Fixture '{weather.location}' missing tomorrow series: {', '.join(missing)}"
         )
     return weather
+
+
+def _codes_from_precip(precip: tuple[float, ...], *, clear: int = 0) -> tuple[int, ...]:
+    """Rough WMO codes so overnight whimsy can read tomorrow morning."""
+    codes: list[int] = []
+    for amount in precip:
+        if amount >= 8.0:
+            codes.append(65)
+        elif amount >= 3.0:
+            codes.append(81)
+        elif amount >= 1.0:
+            codes.append(80)
+        elif amount >= 0.2:
+            codes.append(61)
+        else:
+            codes.append(clear)
+    return tuple(codes)
 
 
 def stress_weather() -> WeatherData:
@@ -116,6 +134,7 @@ def stress_weather() -> WeatherData:
         hourly_precipitation_tomorrow=precip_tomorrow,
         hourly_uv_index_tomorrow=uv_tomorrow,
         hourly_temperature_tomorrow=temps_tomorrow,
+        hourly_weather_code_tomorrow=_codes_from_precip(precip_tomorrow),
     )
 
 
@@ -154,6 +173,7 @@ def calm_weather() -> WeatherData:
         hourly_precipitation_tomorrow=precip_tomorrow,
         hourly_uv_index_tomorrow=uv_tomorrow,
         hourly_temperature_tomorrow=temps_tomorrow,
+        hourly_weather_code_tomorrow=_codes_from_precip(precip_tomorrow),
     )
 
 
@@ -229,4 +249,5 @@ def mixed_weather() -> WeatherData:
         hourly_precipitation_tomorrow=precip_tomorrow,
         hourly_uv_index_tomorrow=uv_tomorrow,
         hourly_temperature_tomorrow=temps_tomorrow,
+        hourly_weather_code_tomorrow=_codes_from_precip(precip_tomorrow),
     )
