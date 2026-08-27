@@ -52,6 +52,7 @@ class WeatherData:
     hourly_precipitation_tomorrow: tuple[float, ...] = ()
     hourly_uv_index_tomorrow: tuple[float, ...] = ()
     hourly_temperature_tomorrow: tuple[float, ...] = ()
+    hourly_weather_code_tomorrow: tuple[int, ...] = ()
 
     @property
     def hours(self) -> int:
@@ -229,6 +230,9 @@ def load_weather_cache(path: Path) -> WeatherData | None:
             hourly_temperature_tomorrow=_optional_hours(
                 payload.get("hourly_temperature_tomorrow")
             ),
+            hourly_weather_code_tomorrow=_optional_hours_int(
+                payload.get("hourly_weather_code_tomorrow")
+            ),
         )
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         logger.warning("Ignoring unreadable weather cache %s: %s", path, exc)
@@ -263,6 +267,7 @@ def _parse_payload(payload: dict[str, Any], *, location: str) -> WeatherData:
             hourly_precipitation_tomorrow=_hours_for_day(precip_all, 1),
             hourly_uv_index_tomorrow=_hours_for_day(uv_all, 1),
             hourly_temperature_tomorrow=_hours_for_day(temps_all, 1),
+            hourly_weather_code_tomorrow=_hours_for_day_int(codes_all, 1),
         )
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise RuntimeError(f"Unexpected Open-Meteo payload: {exc}") from exc
@@ -347,3 +352,10 @@ def _optional_hours(raw: Any) -> tuple[float, ...]:
     if not isinstance(raw, list) or not raw:
         return ()
     return _normalize_hours([_coerce_float(v, default=0.0) for v in raw])
+
+
+def _optional_hours_int(raw: Any) -> tuple[int, ...]:
+    """Load an optional cached tomorrow integer series; missing/invalid → empty."""
+    if not isinstance(raw, list) or not raw:
+        return ()
+    return _normalize_hours_int([_coerce_int(v, default=0) for v in raw])
