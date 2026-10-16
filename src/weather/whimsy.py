@@ -18,7 +18,7 @@ OVERNIGHT_FLIP_HOUR = 20
 
 # Swappable animal pools. Use {Wet}/{wet}, {Smug}/{smug}, etc. in templates.
 # Capitalised form for sentence starts; lower form mid-sentence.
-_WET = ("ducks", "frogs", "otters", "newts")
+_WET = ("ducks", "frogs", "otters", "newts", "tapirs")
 _SMUG = ("robins", "pigeons", "foxes", "hedgehogs")
 _BOSS = ("ducks", "frogs", "otters", "cows", "sheep")
 _HOT = ("bees", "birds", "butterflies", "squirrels")
@@ -71,6 +71,7 @@ _LINES: dict[Bucket, tuple[str, ...]] = {
         "Soft wet day. {Wet} are already outside",
     ),
     "showers": (
+        "Looks like rain...smells like rain...tastes like rain...it's raining",
         "Rain later. Pigeons will pretend it was their idea",
         "Wear wellies. Then another pair. (You can't)",
         "A splash at tea time. {Wet} are already queuing",
