@@ -11,7 +11,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  # Not `pages`: run 42670130375 is stuck waiting on github-pages and GitHub
+  # will not cancel it, so that group never frees.
+  group: pages-publish
   # Let an in-flight deploy finish; overlapping crons queue instead of cancelling.
   cancel-in-progress: false
 
