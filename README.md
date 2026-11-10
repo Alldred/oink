@@ -32,7 +32,7 @@ Fixtures: `stress` (UV 11, late heavy rain), `calm`, `mixed`. Writes `public/das
 ## Publish
 
 1. Push to GitHub.
-2. **Settings → Pages → Source: GitHub Actions**.
+2. **Settings → Pages → Build and deployment → Source: Deploy from a branch**, branch `gh-pages`, folder `/ (root)`. The workflow builds `dashboard.png` and pushes that branch. Leave the source on the branch; the GitHub Actions Pages deployment is what got stuck and could not be cancelled.
 3. Deploy the Cloudflare scheduler in [`cloudflare-scheduler/`](cloudflare-scheduler/) so builds run on a reliable ~15-minute cron (GitHub’s own `schedule` trigger is best-effort and often skips). Or run **Build and publish dashboard** manually via Actions → **Run workflow**.
 4. Image URL: `https://YOUR_USER.github.io/oink/dashboard.png`
 

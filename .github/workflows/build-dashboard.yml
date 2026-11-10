@@ -6,20 +6,18 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  # Not `pages`: run 42670130375 is stuck waiting on github-pages and GitHub
-  # will not cancel it, so that group never frees.
+  # Run 42670130375 still holds the old group name `pages` and GitHub will not cancel it.
   group: pages-publish
-  # Let an in-flight deploy finish; overlapping crons queue instead of cancelling.
-  cancel-in-progress: false
+  # A newer dashboard replaces an older in-flight build.
+  cancel-in-progress: true
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,7 +43,7 @@ jobs:
         env:
           TZ: Europe/London
         run: |
-          set -e
+          set -euo pipefail
           for attempt in 1 2 3; do
             if python src/generate_dashboard.py --timezone Europe/London; then
               exit 0
@@ -55,24 +53,33 @@ jobs:
           done
           exit 1
 
-      - name: Stage Pages files
+      - name: Publish dashboard.png to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p _site
-          cp public/dashboard.png public/.nojekyll _site/
-          # Keep fixture PNGs in the repo for local --test, but do not publish them.
+          set -euo pipefail
+          test -f public/dashboard.png
+          test -f public/.nojekyll
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: _site
+          publish="$(mktemp -d)"
+          cp public/dashboard.png public/.nojekyll "$publish/"
+          git -C "$publish" init -b gh-pages
+          git -C "$publish" config user.name "github-actions[bot]"
+          git -C "$publish" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$publish" add dashboard.png .nojekyll
+          git -C "$publish" commit -m "Publish dashboard"
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+          # Each publish is a new root commit, so updating the branch replaces
+          # history. This remote is only gh-pages, never main.
+          askpass="$(mktemp)"
+          cat > "$askpass" <<'EOF'
+          #!/bin/sh
+          case "$1" in
+            *Username*) echo "x-access-token" ;;
+            *) echo "$GITHUB_TOKEN" ;;
+          esac
+          EOF
+          chmod +x "$askpass"
+          GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0 \
+            git -C "$publish" push --force \
+            "https://github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages
