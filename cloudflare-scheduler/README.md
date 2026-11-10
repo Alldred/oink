@@ -1,6 +1,6 @@
 # Cloudflare scheduler for Oink
 
-Cloudflare Worker cron that triggers the existing **Build and publish dashboard** GitHub Actions workflow via `workflow_dispatch`. Cloudflare only schedules; image generation and GitHub Pages deployment stay in Actions.
+Cloudflare Worker cron that triggers the existing **Build and publish dashboard** GitHub Actions workflow via `workflow_dispatch`. Cloudflare only schedules. Actions generates the PNG and pushes it to the `gh-pages` branch, which GitHub Pages serves.
 
 All commands below run in a terminal (macOS **Terminal**, or **Terminal → New Terminal** in Cursor), from this folder unless noted.
 
